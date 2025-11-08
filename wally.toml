@@ -1,12 +1,12 @@
 [package]
 name = "alexeylegasov63/leafframeworkrbx"
 description = "LeafFramework is a lightweight modular Roblox framework inspired by Flamework (Roblox-TS)"
-version = "0.1.5"
+version = "0.1.6"
 license = "Apache-2.0"
 authors = ["AlexeyLegasov63"]
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
-exclude = ["*.toml"]
+exclude = ["aftman.toml", "selene.toml"]
 
 [dependencies]
 Promise = "evaera/promise@4.0.0"

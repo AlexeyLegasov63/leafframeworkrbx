@@ -1,4 +1,8 @@
--- components.luau
+--[[
+    Leaf Framework Components Module
+    Provides component-based architecture for Roblox entities (instances).
+    Handles creation, lifecycle management, dependency resolution, and tagging.
+]]
 
 local CollectionService = game:GetService("CollectionService")
 
@@ -16,6 +20,7 @@ local Components = {
     Name = "Components",
 }
 
+-- Signals for component spawn/despawn events
 Components.onComponentSpawned = LemonSignal.new()
 Components.onComponentDespawned = LemonSignal.new()
 
@@ -68,11 +73,13 @@ function watchForInstances(tag, predicate, constructor)
         if not testInstance(predicate, instance) then
             return -- Doesn't pass the predicate
         end
-        local success, destructor = pcall(constructor, instance)
+
+        local success, destructor = Utils.try(constructor, `Failed to call constructor for instance {instance:GetFullName()}`, instance)
+
         if not success then
-            warn(`Failed to call constructor for instance {instance:GetFullName()}:\n\t{destructor}`)
             return
         end
+
         local connection
         connection = CollectionService:GetInstanceRemovedSignal(tag):Connect(function(otherInstance)
             if otherInstance ~= instance then
@@ -81,13 +88,7 @@ function watchForInstances(tag, predicate, constructor)
 
             connection:Disconnect()
 
-            local success, err = pcall(destructor)
-
-            if success then
-                return
-            end
-
-            warn(`[Leaf] Failed to call destructor for instance {instance:GetFullName()}:\n\t{err}`)
+            Utils.try(destructor, `Failed to call destructor for instance {instance:GetFullName()}`)
         end)
     end
 
@@ -201,7 +202,7 @@ function loadComponent(module)
         return -- Doesn't have a tag, so we don't need to do anything
     end
 
-    watchForInstances(component.Tag, function(instance)
+    watchForInstances(component.Tag, component.Predicate, function(instance)
         local componentInstance = Components.addComponent(instance, component.Name)
 
         Components.onComponentSpawned:Fire(component.Tag, componentInstance)
