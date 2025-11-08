@@ -5,7 +5,7 @@ local CollectionService = game:GetService("CollectionService")
 local Root = script.Parent
 local BaseComponent = require(script.base_component)
 local DependencyResolver = require(Root.dependency_resolver)
-local LemonSignal = require(Root.Packages.LemonSignal)
+local LemonSignal = require(game:GetService("ReplicatedStorage").Packages.LemonSignal)
 local LifeCycle = require(script.Parent.life_cycle)
 local Utils = require(Root.utils)
 

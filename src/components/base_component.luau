@@ -20,7 +20,7 @@
             • Attributes (table)  - Default attributes and types
 --]]
 
-local Trove = require(script.Parent.Parent.Packages.Trove)
+local Trove = require(game:GetService("ReplicatedStorage").Packages.Trove)
 
 local BaseComponent = { 
     Name = "BaseComponent" 
