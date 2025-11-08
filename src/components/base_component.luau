@@ -62,13 +62,13 @@ local function storeInstanceAttributes(self)
     end
 
     -- Two-way binding between self.Attributes and Instance attributes
-    self.Attributes = setmetatable(attributes, {
+    self.Attributes = setmetatable({}, {
         __index = function(_, k)
             return attributes[k]
         end,
         __newindex = function(_, k, v)
             self.Instance:SetAttribute(k, v)
-            rawset(attributes, k, v)
+            attributes[k] = v
         end
     })
 end
