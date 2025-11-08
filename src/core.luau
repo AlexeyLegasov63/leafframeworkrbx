@@ -1,0 +1,172 @@
+--[[
+    Core.lua - Core module of the LeafFramework
+    @version 1.0
+    @description
+        Handles framework initialization, dependency resolution, lifecycle registration,
+        and component startup logic. Integrates with the LifeCycle module for per-frame updates.
+
+    Responsibilities:
+      • Resolve topological dependencies between modules (services/controllers/components)
+      • Sort modules by load priority
+      • Register modules for lifecycle events
+      • Initialize all components and services asynchronously
+      • Start the framework and hook into RunService events
+]]
+
+local Components = require(script.Parent.components)
+local DependencyResolver = require(script.Parent.dependency_resolver)
+local LifeCycle = require(script.Parent.life_cycle)
+local Promise = require(script.Parent.Packages.Promise)
+
+export type FrameworkConfig = {
+    profiling: boolean?, -- Enable/disable profiling for lifecycle events
+}
+
+local Core = {
+    config = {} :: FrameworkConfig, -- Framework config
+}
+
+--[[
+    Sorted modules after dependency resolution
+]]
+local ordered = {}
+
+--[[
+    Perform topological sort to resolve dependencies.
+    Throws an error if circular dependency is detected.
+]]
+function resolveDependencies()
+    local children = DependencyResolver.listAll()
+
+	local visited = {}
+	local temp = {}
+
+	local function visit(name: string)
+		if visited[name] then 
+            return -- Already visited
+        elseif temp[name] then
+			error("[Leaf] Circular dependency detected at " .. name)
+		end
+
+		temp[name] = true
+
+		local child = children[name]
+		if not child then
+			error("[Leaf] Missing child dependency: " .. name)
+		end
+
+		if child.Depends then
+			for depName in pairs(child.Depends) do
+			    visit(depName) -- Visit all dependencies
+			end
+		end
+
+		visited[name] = true
+		table.insert(ordered, child)
+	end
+
+	for name in pairs(children) do
+		visit(name) -- Visit all children
+	end
+
+    -- Replace empty dependency tables with actual module references
+    for _, child in pairs(children) do
+		if child.Depends then
+            for depName in pairs(child.Depends) do
+                child.Depends[depName] = children[depName]
+            end
+		end
+    end
+end
+
+--[[
+    Sort modules by LoadOrder.
+    Higher priority modules (larger LoadOrder) load first.
+]]
+function sortLoadedChildren()
+    -- Biggest priority == Earlier Load
+	table.sort(ordered, function(a, b)
+        -- Member Priority is nullable so we replace it with zero if nil
+		local ap = a.LoadOrder or 0
+		local bp = b.LoadOrder or 0
+		return ap > bp
+	end)
+end
+
+--[[
+    Registers all non-component modules in the LifeCycle system.
+]]
+function registerChildrenInLifeCycle()
+    for _, child in pairs(ordered) do
+        if child.Type == DependencyResolver.Component then
+            continue
+        end
+        LifeCycle.register(child)
+    end
+end
+
+--[[
+    Executes a lifecycle method asynchronously across all modules using Promise.
+    @param lifeCycle string - method name (e.g. "onInit", "onStart")
+    @param ... any - arguments passed to each module's method
+    @return Promise - resolves when all lifecycle calls are completed
+]]
+function invokeLifeCycleMethodsAsync(lifeCycle, ...)
+    local varargs = table.pack(...) -- Convert to array
+    local promises = {} -- Promise array
+
+    for _, child in pairs(ordered) do
+        local impl = child[lifeCycle] -- Get implementation 
+        if type(impl) ~= "function" then
+			continue -- There's no such function in the child or it's not a function
+		end
+
+        table.insert(promises, Promise.try(function()
+            debug.setmemorycategory(child.Name) -- Mark for debug
+            return impl(child, table.unpack(varargs)) -- Safe call
+        end))
+    end
+
+    return Promise.all(promises):andThen(function()
+        debug.resetmemorycategory()
+    end)
+end
+
+--[[
+    Initializes the framework.
+    @param config? FrameworkConfig - optional framework configuration
+    @return Promise - resolves when all modules are initialized (onInit)
+]]
+function Core.initialize(config: FrameworkConfig?)
+    Core.config = config or {}
+
+    -- Add Components as a possible dependency
+    DependencyResolver.addCustomDependency("Components", Components.dependency) -- Add components as a custom dependency
+
+    -- Resolve dependencies
+    resolveDependencies()
+    -- Sort loaded children (LoadOrder)
+    sortLoadedChildren()
+    -- Register children
+    registerChildrenInLifeCycle()
+
+    -- Initialize components
+    Components.initialize()
+
+    -- Invoke onInit
+    return invokeLifeCycleMethodsAsync("onInit")
+end
+
+--[[
+    Starts the framework.
+    @return Promise - resolves when all modules have started (onStart) and lifecycle events are hooked
+]]
+function Core.start()
+    -- Invoke onStart
+    return invokeLifeCycleMethodsAsync("onStart"):andThen(function()
+        -- Initialize LifeCycle module (Heartbeat, PreSimulation, RenderStepped)
+        LifeCycle.initialize(Core.config.profiling)
+    end)
+end
+
+return Core

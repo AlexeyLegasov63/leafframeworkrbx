@@ -1,0 +1,10 @@
+[package]
+name = "kineticwallet/lemon-signal"
+description = "A typed version of data-oriented-house's lemon-signal package."
+version = "1.10.0"
+license = "MIT"
+authors = ["data-oriented-house", "kineticwallet"]
+realm = "shared"
+registry = "https://github.com/upliftgames/wally-index"
+exclude = []
+private = false
