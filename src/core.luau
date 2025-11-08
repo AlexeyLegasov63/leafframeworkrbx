@@ -16,7 +16,7 @@
 local Components = require(script.Parent.components)
 local DependencyResolver = require(script.Parent.dependency_resolver)
 local LifeCycle = require(script.Parent.life_cycle)
-local Promise = require(game:GetService("ReplicatedStorage").Packages.Promise)
+local Promise = require(script.Parent.Parent.Parent.Promise)
 
 export type FrameworkConfig = {
     profiling: boolean?, -- Enable/disable profiling for lifecycle events
