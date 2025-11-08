@@ -1,4 +1,4 @@
-# TinyFrameworkRbx Changelog
+# LeafFrameworkRbx Changelog
 
 ## Unreleased Changes
 

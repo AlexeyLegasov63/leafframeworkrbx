@@ -14,7 +14,10 @@
 
 ## Installation
 
-TODO: Wally
+### Wally
+
+[dependencies]
+Leaf = "alexeylegasov63/leafframeworkrbx@0.1.0"
 
 ## Usage
 
