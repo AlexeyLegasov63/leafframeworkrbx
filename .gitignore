@@ -1,5 +1,6 @@
 # Argon
 /sourcemap.json
+/test.project.json
 
 # Artifacts
 /*.lock
