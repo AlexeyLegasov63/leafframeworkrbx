@@ -49,14 +49,25 @@ function assureComponentContainerExists(instance)
     return false
 end
 
+-- Ensures that the instance passes the predicate
+function testInstance(predicate, instance)
+    if not predicate then
+        return true
+    end
+    return predicate(instance)
+end
+
 -- Removes a tag from an instance
 function removeTagFromInstance(instance, tag)
 	CollectionService:RemoveTag(instance, tag)
 end
 
 -- Watch for instances with a specific tag
-function watchForInstances(tag, constructor)
+function watchForInstances(tag, predicate, constructor)
     local wrapper = function(instance: Instance)
+        if not testInstance(predicate, instance) then
+            return -- Doesn't pass the predicate
+        end
         local success, destructor = pcall(constructor, instance)
         if not success then
             warn(`Failed to call constructor for instance {instance:GetFullName()}:\n\t{destructor}`)
@@ -293,6 +304,10 @@ function Components.addComponent(instance: Instance, componentName: string)
     assureComponentContainerExists(instance)
 
     local component = loadedComponents[componentName]
+
+    if not testInstance(component.Predicate, instance) then
+        error(`[Leaf] Instance '{instance:GetFullName()}' does not pass the predicate for component '{componentName}'!`, 3)
+    end
 
     -- Check if the component already exists
     if instancesMap[instance][componentName] then

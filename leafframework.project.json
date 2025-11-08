@@ -1,9 +1,0 @@
-{
-  "name": "LeafFrameworkRbx",
-  "tree": {
-    "$path": "src",
-    "Packages": {
-      "$path": "Packages"
-    }
-  }
-}
