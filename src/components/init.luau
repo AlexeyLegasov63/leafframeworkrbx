@@ -88,9 +88,25 @@ function watchForInstances(tag, constructor)
 end
 
 --[[
+    Invokes a method of the component super class if it exists
+]]
+function invokeLifeCycleComponentMethod(componentInstance, methodName, ...)
+    local method = componentInstance.Super[methodName]
+
+    if type(method) ~= "function" then
+        return
+    end
+
+    return method(componentInstance, ...)
+end
+
+--[[
     Invokes a method of the component if it exists
 ]]
 function invokeComponentMethod(componentInstance, methodName, ...)
+    -- Auto invoke life cycle methods
+    invokeLifeCycleComponentMethod(componentInstance, methodName, ...)
+
     local method = componentInstance[methodName]
 
     if type(method) ~= "function" then
@@ -100,12 +116,15 @@ function invokeComponentMethod(componentInstance, methodName, ...)
     return method(componentInstance, ...)
 end
 
--- Creates a new component
+--[[
+    Creates a new component class
+]]
 function createNewComponent(class, super)
     class.__index = class
     class.Super = super
     return setmetatable(class, super)
 end
+
 --[[
     Creates a new instance of the component
 ]]
@@ -115,7 +134,12 @@ function createComponentInstance(component, instance)
     return componentInstance
 end
 
--- Resolve component dependencies
+--[[
+    Resolve component dependencies
+    @param instance Instance
+    @param component Component
+    @param componentInstance ComponentInstance
+]]
 function resolveComponentDependencies(instance, component, componentInstance)
     if not component.Depends then
         return
@@ -137,7 +161,9 @@ function resolveComponentDependencies(instance, component, componentInstance)
     end
 end
 
--- Get the super class
+--[[
+    Get the super class
+]]
 function getSuperComponentClass(module)
     local superClass = module["Super"]
 
@@ -151,7 +177,10 @@ function getSuperComponentClass(module)
     return BaseComponent -- Default
 end
 
--- Load a component
+--[[
+    Load a component module
+    @param module The module
+]]
 function loadComponent(module)
     local component = createNewComponent(module, getSuperComponentClass(module))
 
@@ -174,6 +203,7 @@ function loadComponent(module)
 end
 
 --[[
+    Initializes all the components
 ]]
 function initializeComponents()
     local loaded = DependencyResolver.listAll()
@@ -386,7 +416,6 @@ function Components.watchComponent(component, callback)
 end
 
 ----------------------------------------
-
 
 -- Export
 return {

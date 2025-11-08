@@ -22,7 +22,9 @@
 
 local Trove = require(script.Parent.Parent.Packages.Trove)
 
-local BaseComponent = {}
+local BaseComponent = { 
+    Name = "BaseComponent" 
+}
 BaseComponent.__index = BaseComponent
 
 --[[
@@ -154,4 +156,9 @@ function BaseComponent:destroy()
     self.Instance:Destroy()
 end
 
-return BaseComponent
+-- Prevent changes to the super class
+return setmetatable(BaseComponent, {
+    __newindex = function()
+        error(`[Leaf] The super class cannot be changed!`, 4)
+    end
+})

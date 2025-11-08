@@ -23,6 +23,10 @@ local Utils = require(script.Parent.utils)
 
 local LifeCycle = {}
 
+--[[
+    Internal registry of lifecycle events.
+    Each lifecycle name maps to a RunService event.
+]]
 local events = {
     onTick = RunService.Heartbeat,
     onPhysics = RunService.PreSimulation
@@ -35,9 +39,9 @@ end
 
 --[[
     Internal registry of lifecycle connections.
-    Each lifecycle name maps to a WeakMap<Instance, Function>.
+    Each lifecycle name maps to a WeakMap<Object, Function>.
 ]]
-local registers = {}
+local registers = {} -- LifeCycleName -> WeakMap<Object, Function>
 
 -- Flags and thread cache
 local isProfiling = false
