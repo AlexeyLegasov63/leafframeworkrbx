@@ -17,7 +17,7 @@
 ### Wally
 
 ```ini
-Leaf = "alexeylegasov63/leafframeworkrbx@0.1.5"
+Leaf = "alexeylegasov63/leafframeworkrbx@0.1.6"
 ```
 
 ## Usage
@@ -77,13 +77,6 @@ local DamagerComponent = {
 
 function DamagerComponent:onSpawn()
 	self.Super.onSpawn(self) -- If you wish to have BaseComponent stuff
-
-    print(self.Depends.DamageService:calculateDamage(self)) -- Use the dependency
-
-	self:onAttributeChanged("Damage", function(new, last)
-		print("Hello, Flamework!", new, last)
-	end)
-end
 
     print(self.Depends.DamageService:calculateDamage(self)) -- Use the dependency
 
