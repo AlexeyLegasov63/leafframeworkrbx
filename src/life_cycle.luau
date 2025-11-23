@@ -21,6 +21,9 @@
 local RunService = game:GetService("RunService")
 local Utils = require(script.Parent.utils)
 
+local throw = Utils.throw
+local try = Utils.try
+
 local LifeCycle = {}
 
 --[[
@@ -109,7 +112,7 @@ local function invokeLifeCycleMethods(lifeCycle, a, b, c)
     local connected = registers[lifeCycle]
 
     if not connected then
-        error("[Leaf] No such lifeCycle method: " .. lifeCycle)
+        throw("No such lifeCycle method: " .. lifeCycle)
         return
     end
 
@@ -128,8 +131,9 @@ function LifeCycle.initialize(profiling)
     isProfiling = profiling
 
     for lifeCycle, signal in pairs(events) do
+        local errMessage = `Error invoking lifeCycle ({lifeCycle}) event`
         signal:Connect(function(...)
-            invokeLifeCycleMethods(lifeCycle, ...)
+            try(invokeLifeCycleMethods, errMessage, lifeCycle, ...)
         end)
     end
 end

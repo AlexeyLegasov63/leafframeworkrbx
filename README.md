@@ -17,7 +17,7 @@
 ### Wally
 
 ```ini
-Leaf = "alexeylegasov63/leafframeworkrbx@0.1.6"
+Leaf = "alexeylegasov63/leafframeworkrbx@0.2.1"
 ```
 
 ## Usage
@@ -25,80 +25,147 @@ Leaf = "alexeylegasov63/leafframeworkrbx@0.1.6"
 ### Initialization & Running
 
 ```lua
+
 LeafFramework.addServices(game.ServerScriptService.Services)
 LeafFramework.addComponents(game.ServerScriptService.Components)
 LeafFramework.addComponentsDeep(game.ReplicatedStorage.Components)
-W
+
 -- And more more more
 
 LeafFramework.run({
     profiling = true -- optional
 }):catch(warn)
+
 ```
 
 ### Creating a Service
 
 ```lua
--- DamageService.lua
-local DamageService = {
+-- HelloService.lua
+local HelloService = {
     LoadOrder = 2
 }
 
-function DamageService:onInit()
-    self._time = 0
+function HelloService:onInit()
+    print("Init")
 end
 
-function DamageService:onTick(dt)
-    self._time += dt
+function HelloService:onStart()
+    print("Start")
 end
 
-function DamageService:calculateDamage(damager)
-    return damager.Attributes.Damage * self._time
+function HelloService:onTick(dt)
+    print("Tick")
 end
 
-return DamageService
+return HelloService
 ```
 
 ### Creating a Component
 
 ```lua
--- DamagerComponent.lua
-local DamagerComponent = {
-    Name = "Damager",
-    Tag = "Damager", -- Optional
-    Attributes = {
-        Damage = 10,
-        LastDamage = 0,
-    },
-    Depends = {
-        DamageService = {}
-    }
+-- examples/components/PlayerInfoComponent.lua
+local PlayerInfoComponent = {
+    -- Name = "PlayerInfo" (If you don't want to use the component's module script name as the name)
+
+    Predicate = function(instance)
+        return instance:IsA("Player") -- Ensure the instance is a player
+    end
 }
 
-function DamagerComponent:onSpawn()
-	self.Super.onSpawn(self) -- If you wish to have BaseComponent stuff
-
-    print(self.Depends.DamageService:calculateDamage(self)) -- Use the dependency
-
-	self:onAttributeChanged("Damage", function(new, last)
-		print("Hello, Flamework!", new, last)
-	end)
+function PlayerInfoComponent:onSpawn()
+    self:_disableDefaultNickname()
+    self:_createInfoBoard()
 end
 
+function PlayerInfoComponent:_disableDefaultNickname()
+    -- Disable the default nickname
+    local humanoid = self.Instance:WaitForChild("Humanoid")
+    humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+end
 
-return DamagerComponent
+function PlayerInfoComponent:_createInfoBoard()
+    -- Create a billboard
+    local billboard = Instance.new("BillboardGui")
+    billboard.Size = UDim2.fromScale(2, 0.5)
+    billboard.Parent = self.Instance:WaitForChild("HumanoidRootPart")
+
+    -- Create a text label (the name of the player)
+    local label = Instance.new("TextLabel")
+    label.Parent = billboard
+    label.Text = self.Instance.Name -- Player character's name
+    label.TextScaled = true
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Size = UDim2.fromScale(1, 1)
+    label.BackgroundTransparency = 1
+
+    -- Add the billboard to the cleaner for automatic cleanup after component removing
+    self.Cleaner:Add(billboard)
+end
+
+return PlayerInfoComponent
 ```
 
 ### Using a Component
 
 ```lua
-local Components = require(game.ServerScriptService.LeafFramework.Components)
+local PlayerInfoController = {
+    Depends = {
+        Components = {} -- ? Use Components as dependency (Just like in Flamework)
+    }
+}
 
-local damager = Components.addComponent(somePart, "Damager")
-print(damager.Attributes.Damage) -- 10
+-- ? A hook to the start lifecycle event
+function PlayerInfoController:onStart()
+    self:_startLookingForComponents()
+    self:_startLookingForPlayers()
+end
 
-damager.Attributes.LastDamage = 5
-print(damager.Instance:GetAttribute("LastDamage")) -- 5
+function PlayerInfoController:_startLookingForComponents()
+    -- ? Will invoke the callback when the component is added
+    -- ? Also invokes the callback for already existing components
+    local connection = self.Depends.Components.watchComponent("PlayerInfoComponent", function(component)
+        print("PlayerInfoComponent added to", component.Instance.Name)
+    end)
+    -- ? connection:Disconnect() Can be disconnected later
+end
+
+-- ? Will invoke the callback when a player joins
+function PlayerInfoController:_startLookingForPlayers()
+    for _, player in pairs(Players:GetPlayers()) do
+        task.defer(self._handlePlayerJoin, self, player) -- For already existing players
+    end
+
+    Players.PlayerAdded:Connect(function(player)
+        self:_handlePlayerJoin(player)
+    end)
+end
+
+function PlayerInfoController:_handlePlayerJoin(player)
+    local onCharSpawn = function(character)
+        self:_handleCharSpawn(character)
+    end
+
+    if player.Character then
+        onCharSpawn(player.Character)
+    end
+
+    player.CharacterAdded:Connect(onCharSpawn)
+end
+
+function PlayerInfoController:_handleCharSpawn(character)
+    -- ? Use the component's "Name" field in the table of the component definition or
+    -- ? the component's module script name
+
+    local playerInfo = self.Depends.Components.addComponent(character, "PlayerInfoComponent")
+
+    -- ? Will add the component to the virtual component holder of the instance (Character)
+    -- ? If the instance removes the component, it will be removed from the virtual component holder automatically
+
+    -- ! It's impossible to have multiple instances of the same component on the same instance
+end
+
+return PlayerInfoController
 ```
 
 ### Lifecycle Methods

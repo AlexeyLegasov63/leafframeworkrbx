@@ -9,6 +9,9 @@ local RunService = game:GetService("RunService")
 
 local Core = require(script.core)
 local DependencyResolver = require(script.dependency_resolver)
+local Utils = require(script.utils)
+
+local throw = Utils.throw
 
 export type FrameworkConfig = Core.FrameworkConfig
 
@@ -18,6 +21,22 @@ local LeafFramework = {}
 local started = false
 
 --[[
+    Adds controllers/services from a directory.
+    @param directory - The directory to scan
+]]
+function addChildren(directory)
+    DependencyResolver.requireModules(directory)
+end
+
+--[[
+    Recursively adds controllers/services from a directory and its subdirectories.
+    @param directory - The directory to scan
+]]
+function addDeep(directory)
+    DependencyResolver.requireModulesDeep(directory)
+end
+
+--[[
     Adds module loader aliases based on runtime context.
 
     On the **Client**, controllers are the equivalent of services on the server.
@@ -25,13 +44,11 @@ local started = false
     and dependency injection model internally.
 ]]
 if RunService:IsClient() then
-    -- Controller loaders for client
-    LeafFramework.addControllers = DependencyResolver.requireModules
-    LeafFramework.addControllersDeep = DependencyResolver.requireModulesDeep
+    LeafFramework.addControllers = addChildren
+    LeafFramework.addControllersDeep = addDeep
 else
-    -- Service loaders for server
-    LeafFramework.addServices = DependencyResolver.requireModules
-    LeafFramework.addServicesDeep = DependencyResolver.requireModulesDeep
+    LeafFramework.addServices = addChildren
+    LeafFramework.addServicesDeep = addDeep
 end
 
 --[[
@@ -66,8 +83,9 @@ end
 ]]
 function LeafFramework.run(config: FrameworkConfig?)
     if started then
-        error("[Leaf] Framework has already been started.")
+        throw("[Leaf] Framework has already been started.")
     end
+
     started = true
     
     return Core.initialize(config):andThen(function()

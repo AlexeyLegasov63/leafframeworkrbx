@@ -2,6 +2,10 @@
     Leaf Framework Components Module
     Provides component-based architecture for Roblox entities (instances).
     Handles creation, lifecycle management, dependency resolution, and tagging.
+
+
+    TODO:
+        - Auto dependencies check resolver (For CollectionService)
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -54,11 +58,59 @@ function assureComponentContainerExists(instance)
     return false
 end
 
--- Ensures that the instance passes the predicate
-function testInstance(predicate, instance)
-    if not predicate then
+-- Test if the instance is a descendant of any of the whitelisted ancestors
+function testForAncestry(component, instance)
+    local whitelist = component.WhitelistedAncestors
+
+    -- Check if the instance is a descendant of any of the whitelisted ancestors
+    -- If so, it passes the test
+    if type(whitelist) == "table" then
+        for _, ancestor in whitelist do
+            if instance:IsDescendantOf(ancestor) then
+                return true
+            end
+        end
+    end
+
+    local blacklist = component.BlacklistedAncestors
+
+    -- Check if the instance is a descendant of any of the blacklisted ancestors
+    -- If so, it doesn't pass the test
+    if type(blacklist) == "table" then
+        for _, ancestor in blacklist do
+            if instance:IsDescendantOf(ancestor) then
+                return false
+            end
+        end
+    end
+
+    -- All is ok <3
+    return true
+end
+
+-- Ensures that the instance passes all the predicates
+function testInstance(component, instance)
+    if not testForAncestry(component, instance) then
+        return false -- Doesn't pass the ancestry
+    end
+
+    -- Auto type predicate
+    local autoIsA = component.Instance
+
+    -- Check if the instance is of the correct type
+    if type(autoIsA) == "string" and not instance:IsA(autoIsA) then
+        return false
+    end
+
+    -- Custom predicate
+    local predicate = component.Predicate
+
+    -- There is no predicate
+    if type(predicate) ~= "function" then
         return true
     end
+
+    -- Custom predicate
     return predicate(instance)
 end
 
@@ -68,13 +120,17 @@ function removeTagFromInstance(instance, tag)
 end
 
 -- Watch for instances with a specific tag
-function watchForInstances(tag, predicate, constructor)
+function watchForInstances(component)
+    local name = component.Name
+    local tag = component.Tag
+
     local wrapper = function(instance: Instance)
-        if not testInstance(predicate, instance) then
+        if not testInstance(component, instance) then
             return -- Doesn't pass the predicate
         end
 
-        local success, destructor = Utils.try(constructor, `Failed to call constructor for instance {instance:GetFullName()}`, instance)
+        -- Add the tag to the instance without checking cause we already did it 
+        local success, componentInstance = Utils.try(Components.addComponent, `Failed to call constructor for instance {instance:GetFullName()}`, name, true)
 
         if not success then
             return
@@ -88,8 +144,13 @@ function watchForInstances(tag, predicate, constructor)
 
             connection:Disconnect()
 
-            Utils.try(destructor, `Failed to call destructor for instance {instance:GetFullName()}`)
+            Utils.try(Components.removeComponent, `Failed to remove component {name} from instance {instance:GetFullName()}`, instance, name)
         end)
+
+        -- Check if the component has BaseComponent as a super class
+        if componentInstance.Super == BaseComponent then
+            componentInstance.Cleaner:Add(connection) -- Manual cleanup
+        end
     end
 
 	for _, instance in pairs(CollectionService:GetTagged(tag)) do
@@ -202,16 +263,8 @@ function loadComponent(module)
         return -- Doesn't have a tag, so we don't need to do anything
     end
 
-    watchForInstances(component.Tag, component.Predicate, function(instance)
-        local componentInstance = Components.addComponent(instance, component.Name)
-
-        Components.onComponentSpawned:Fire(component.Tag, componentInstance)
-
-        return function()
-            Components.removeComponent(instance, component.Name)
-            Components.onComponentDespawned:Fire(component.Tag, componentInstance)
-        end
-    end)
+    -- Watch for instances with the tag
+    watchForInstances(component)
 end
 
 --[[
@@ -298,16 +351,17 @@ end
     Add component to instance
     @param instance Instance to add the component
     @param componentName Name of the component
+    @param skipTest Skip the test (Ancestry, type, predicate checkings)
     @return A component instance that was added otherwise the already existing one
 ]]
-function Components.addComponent(instance: Instance, componentName: string)
+function Components.addComponent(instance: Instance, componentName: string, skipTest: boolean?)
     assertIfNotExists(componentName)
     assureComponentContainerExists(instance)
 
     local component = loadedComponents[componentName]
 
-    if not testInstance(component.Predicate, instance) then
-        error(`[Leaf] Instance '{instance:GetFullName()}' does not pass the predicate for component '{componentName}'!`, 3)
+    if not skipTest and not testInstance(component.Predicate, instance) then
+        error(`[Leaf] Instance '{instance:GetFullName()}' does not pass test for component '{componentName}'!`, 3)
     end
 
     -- Check if the component already exists
@@ -337,6 +391,9 @@ function Components.addComponent(instance: Instance, componentName: string)
         -- Add the tag to the instance if missing
         assureHasTag(instance, component.Tag)
     end
+
+    -- Fire public event
+    Components.onComponentSpawned:Fire(component.Name, componentInstance)
 
     return componentInstance
 end
@@ -400,6 +457,9 @@ function Components.removeComponent(instance, componentName)
             Components.removeComponent(instance, anotherComponentInstance.Name)
         end
     end
+
+    -- Fire public event
+    Components.onComponentDespawned:Fire(component.Name, componentInstance)
 
     return true
 end

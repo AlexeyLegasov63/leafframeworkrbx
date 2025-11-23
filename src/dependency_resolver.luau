@@ -1,6 +1,12 @@
+--!nolint ImplicitReturn
 --[[
     Dependency resolver
 ]]
+
+local Utils = require(script.Parent.utils)
+
+local throw = Utils.throw
+
 local DepedencyResolver = {}
 
 local children = {}
@@ -11,9 +17,9 @@ DepedencyResolver.Component = newproxy()
 --[[
     Requires a module
     @param module The module
-    @param isComponent True if the module is a component
+    @param type Dependency type
 ]]
-function requireModule(module, isComponent)
+function requireModule(module, type)
     local requiredModule = require(module) :: any
 
     if not requiredModule["Name"] then
@@ -21,12 +27,12 @@ function requireModule(module, isComponent)
     end
 
     -- Set the module type
-    requiredModule["Type"] = isComponent and DepedencyResolver.Component or DepedencyResolver.ServiceOrController
+    requiredModule["Type"] = type
     -- Set the source
     requiredModule["Source"] = module
 
     if children[requiredModule.Name] then
-        error(`[Framework] Duplicate module name: {module:GetFullName()} and {children[requiredModule.Name].Source:GetFullName()}`)
+        throw(`Duplicate module name: {module:GetFullName()} and {children[requiredModule.Name].Source:GetFullName()}`)
     end
 
     children[requiredModule.Name] = requiredModule -- Make a named node in the store
@@ -35,32 +41,33 @@ end
 --[[
     Requires all modules in a directory
     @param directory The directory
-    @param isComponent True if the modules are components
+    @param type Dependency type
 ]]
-function DepedencyResolver.requireModules(directory, isComponent)
+function DepedencyResolver.requireModules(directory, type)
     for _, module in ipairs(directory:GetChildren()) do
         if not module:IsA("ModuleScript") then
             continue
         end
-        requireModule(module, isComponent)
+        requireModule(module, type)
     end
 end
 
 --[[
     Requires all modules in a directory recursively
     @param directory The directory
-    @param isComponent True if the modules are components
+    @param type Dependency type
 ]]
-function DepedencyResolver.requireModulesDeep(directory, isComponent)
+function DepedencyResolver.requireModulesDeep(directory, type)
     for _, module in ipairs(directory:GetDescendants()) do
         if not module:IsA("ModuleScript") then
             continue
         end
-        requireModule(module, isComponent)
+        requireModule(module, type)
     end
 end
 
 --[[
+    selene: allow()
     Resolves a dependency
     @param name The name of the dependency
     @return The module
@@ -72,7 +79,7 @@ function DepedencyResolver.resolve(name)
         return module
     end
 
-    error(`[Framework] Dependency '{name}' does not exist!`)
+    throw(`Dependency '{name}' does not exist!`)
 end
 
 --[[
@@ -90,7 +97,7 @@ end
 ]]
 function DepedencyResolver.addCustomDependency(name, module)
     if children[name] then
-        error(`[Leaf] Duplicate module name: {name}`)
+        throw(`Duplicate module name: {name}`)
     end
 
     if not module["Name"] then

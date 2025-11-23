@@ -1,6 +1,5 @@
 --[[
     Core.lua - Core module of the LeafFramework
-    @version 1.0
     @description
         Handles framework initialization, dependency resolution, lifecycle registration,
         and component startup logic. Integrates with the LifeCycle module for per-frame updates.
@@ -16,7 +15,10 @@
 local Components = require(script.Parent.components)
 local DependencyResolver = require(script.Parent.dependency_resolver)
 local LifeCycle = require(script.Parent.life_cycle)
-local Promise = require(script.Parent.Parent.Parent.Promise)
+local Utils = require(script.Parent.utils)
+local Promise = require(script.Parent.Parent.Promise)
+
+local throw = Utils.throw
 
 export type FrameworkConfig = {
     profiling: boolean?, -- Enable/disable profiling for lifecycle events
@@ -45,14 +47,14 @@ function resolveDependencies()
 		if visited[name] then 
             return -- Already visited
         elseif temp[name] then
-			error("[Leaf] Circular dependency detected at " .. name)
+			throw("Circular dependency detected at " .. name)
 		end
 
 		temp[name] = true
 
 		local child = children[name]
 		if not child then
-			error("[Leaf] Missing child dependency: " .. name)
+			throw("Missing child dependency: " .. name)
 		end
 
 		if child.Depends then
