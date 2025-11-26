@@ -20,7 +20,7 @@
             • Attributes (table)  - Default attributes and types
 --]]
 
-local Trove = require(script.Parent.Parent.Parent.Parent.Trove)
+local Trove = require(script.Parent.Parent.Parent.Trove)
 
 local BaseComponent = { 
     Name = "BaseComponent" 
