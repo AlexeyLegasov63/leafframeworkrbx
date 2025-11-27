@@ -20,10 +20,10 @@
             • Attributes (table)  - Default attributes and types
 --]]
 
-local Trove = require(script.Parent.Parent.Parent.Trove)
+local Cleaner = require(script.Parent.Parent.Utils.Cleaner)
 
-local BaseComponent = { 
-    Name = "BaseComponent" 
+local BaseComponent = {
+	Name = "BaseComponent",
 }
 BaseComponent.__index = BaseComponent
 
@@ -45,34 +45,34 @@ BaseComponent.__index = BaseComponent
         -> Any change to self.Attributes.Health updates the instance, and vice versa.
 --]]
 local function storeInstanceAttributes(self)
-    local attributes = {}
+	local attributes = {}
 
-    -- Setup attributes from Instance
-    for key, default in pairs(self.Attributes or {}) do
-        local current = self.Instance:GetAttribute(key)
-        if current == nil then
-            self.Instance:SetAttribute(key, default)
-            attributes[key] = default
-        else
-            attributes[key] = current
-        end
+	-- Setup attributes from Instance
+	for key, default in pairs(self.Attributes or {}) do
+		local current = self.Instance:GetAttribute(key)
+		if current == nil then
+			self.Instance:SetAttribute(key, default)
+			attributes[key] = default
+		else
+			attributes[key] = current
+		end
 
-        -- Watch for external changes on this attribute
-        self.Cleaner:Add(self.Instance:GetAttributeChangedSignal(key):Connect(function()
-            attributes[key] = self.Instance:GetAttribute(key)
-        end))
-    end
+		-- Watch for external changes on this attribute
+		self.Cleaner:add(self.Instance:GetAttributeChangedSignal(key):Connect(function()
+			attributes[key] = self.Instance:GetAttribute(key)
+		end))
+	end
 
-    -- Two-way binding between self.Attributes and Instance attributes
-    self.Attributes = setmetatable({}, {
-        __index = function(_, k)
-            return attributes[k]
-        end,
-        __newindex = function(_, k, v)
-            self.Instance:SetAttribute(k, v)
-            attributes[k] = v
-        end
-    })
+	-- Two-way binding between self.Attributes and Instance attributes
+	self.Attributes = setmetatable({}, {
+		__index = function(_, k)
+			return attributes[k]
+		end,
+		__newindex = function(_, k, v)
+			self.Instance:SetAttribute(k, v)
+			attributes[k] = v
+		end,
+	})
 end
 
 --[[
@@ -88,8 +88,8 @@ end
         from your subclass's onSpawn method to preserve cleanup behavior.
 --]]
 function BaseComponent:onSpawn()
-    self.Cleaner = Trove.new()
-    storeInstanceAttributes(self)
+	self.Cleaner = Cleaner.new()
+	storeInstanceAttributes(self)
 end
 
 --[[
@@ -104,11 +104,11 @@ end
       • You may extend this method but should always call `self.Super.onDespawn(self)`.
 --]]
 function BaseComponent:onDespawn()
-    if not self.Cleaner then
-        return
-    end
-    self.Cleaner:Destroy() -- Destroy all connections and etc.
-    self.Cleaner = nil
+	if not self.Cleaner then
+		return
+	end
+	self.Cleaner:cleanup() -- Destroy all connections and etc.
+	self.Cleaner = nil
 end
 
 --[[
@@ -128,20 +128,20 @@ end
         end)
 --]]
 function BaseComponent:onAttributeChanged(attribute, callback)
-    local lastValue = self.Attributes[attribute]
+	local lastValue = self.Attributes[attribute]
 
-    -- Watch for attribute changes
-    local connection = self.Instance:GetAttributeChangedSignal(attribute):Connect(function()
-        local newValue = self.Instance:GetAttribute(attribute)
-        local oldValue = lastValue
-        lastValue = newValue
-        self.Attributes[attribute] = newValue
-        callback(newValue, oldValue)
-    end)
+	-- Watch for attribute changes
+	local connection = self.Instance:GetAttributeChangedSignal(attribute):Connect(function()
+		local newValue = self.Instance:GetAttribute(attribute)
+		local oldValue = lastValue
+		lastValue = newValue
+		self.Attributes[attribute] = newValue
+		callback(newValue, oldValue)
+	end)
 
-    self.Cleaner:Add(connection) -- Automatically disconnect on despawn
+	self.Cleaner:add(connection) -- Automatically disconnect on despawn
 
-    return connection
+	return connection
 end
 
 --[[
@@ -150,15 +150,15 @@ end
     explicitly delete its associated object (e.g., temporary visual effects)
 --]]
 function BaseComponent:destroy()
-    if not self.Instance then
-        return
-    end
-    self.Instance:Destroy()
+	if not self.Instance then
+		return
+	end
+	self.Instance:Destroy()
 end
 
 -- Prevent changes to the super class
 return setmetatable(BaseComponent, {
-    __newindex = function()
-        error(`[Leaf] The super class cannot be changed!`, 4)
-    end
+	__newindex = function()
+		error(`[Leaf] The super class cannot be changed!`, 4)
+	end,
 })

@@ -7,9 +7,9 @@
 
 local RunService = game:GetService("RunService")
 
-local Core = require(script.core)
-local DependencyResolver = require(script.dependency_resolver)
-local Utils = require(script.utils)
+local Core = require(script.Core)
+local DependencyResolver = require(script.DependencyResolver)
+local Utils = require(script.Utils)
 
 local throw = Utils.throw
 
@@ -25,7 +25,7 @@ local started = false
     @param directory - The directory to scan
 ]]
 function addChildren(directory)
-    DependencyResolver.requireModules(directory)
+	DependencyResolver.requireModules(directory, DependencyResolver.ServiceOrController)
 end
 
 --[[
@@ -33,7 +33,7 @@ end
     @param directory - The directory to scan
 ]]
 function addDeep(directory)
-    DependencyResolver.requireModulesDeep(directory)
+	DependencyResolver.requireModulesDeep(directory, DependencyResolver.ServiceOrController)
 end
 
 --[[
@@ -44,11 +44,11 @@ end
     and dependency injection model internally.
 ]]
 if RunService:IsClient() then
-    LeafFramework.addControllers = addChildren
-    LeafFramework.addControllersDeep = addDeep
+	LeafFramework.addControllers = addChildren
+	LeafFramework.addControllersDeep = addDeep
 else
-    LeafFramework.addServices = addChildren
-    LeafFramework.addServicesDeep = addDeep
+	LeafFramework.addServices = addChildren
+	LeafFramework.addServicesDeep = addDeep
 end
 
 --[[
@@ -58,7 +58,7 @@ end
     Components are treated as dependency-aware, attribute-synced modules.
 ]]
 LeafFramework.addComponents = function(directory)
-    DependencyResolver.requireModules(directory, true)
+	DependencyResolver.requireModules(directory, DependencyResolver.Component)
 end
 
 --[[
@@ -68,7 +68,7 @@ end
     Useful when organizing components in nested folders by feature or domain.
 ]]
 LeafFramework.addComponentsDeep = function(directory)
-    DependencyResolver.requireModulesDeep(directory, true)
+	DependencyResolver.requireModulesDeep(directory, DependencyResolver.Component)
 end
 
 --[[
@@ -82,15 +82,15 @@ end
     @return Promise<void> - resolves once the framework is fully started.
 ]]
 function LeafFramework.run(config: FrameworkConfig?)
-    if started then
-        throw("[Leaf] Framework has already been started.")
-    end
+	if started then
+		throw("[Leaf] Framework has already been started.")
+	end
 
-    started = true
-    
-    return Core.initialize(config):andThen(function()
-        return Core.start()
-    end)
+	started = true
+
+	return Core.initialize(config):andThen(function()
+		return Core.start()
+	end)
 end
 
 return LeafFramework

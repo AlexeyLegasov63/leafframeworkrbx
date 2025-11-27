@@ -2,6 +2,14 @@
 --!optimize 2
 --!native
 
+--[[
+    Originally from **LemonSignal** (1.10.0) Module by Kineticwallet
+
+    Implements a minimal, disconnectable signal system for event handling.
+    Provides 'Connect' and 'Fire' methods, similar to Roblox's RBXScriptSignal.
+    Connections are stored in a weak table to prevent memory leaks if the Connection object is GCed.
+]]
+
 export type Connection<U...> = {
 	Connected: boolean,
 
@@ -120,102 +128,49 @@ local function once<T..., U...>(self: Signal<T...>, fn: (...any) -> (), ...: U..
 	return cn
 end
 
-local wait = if task
-	then function<T...>(self: Signal<T...>): ...any
-		local thread = coroutine.running()
-		local cn
-		cn = connect(self, function(...)
-			disconnect(cn)
-			task.spawn(thread, ...)
-		end)
-		return coroutine.yield()
-	end
-	else function<T...>(self: Signal<T...>): ...any
-		local thread = coroutine.running()
-		local cn
-		cn = connect(self, function(...)
-			disconnect(cn)
-			local passed, message = coroutine.resume(thread, ...)
-			if not passed then
-				error(message, 0)
-			end
-		end)
-		return coroutine.yield()
-	end
+local function wait<T...>(self: Signal<T...>): ...any
+	local thread = coroutine.running()
+	local cn
+	cn = connect(self, function(...)
+		disconnect(cn)
+		task.spawn(thread, ...)
+	end)
+	return coroutine.yield()
+end
 
-local fire = if task
-	then function<T...>(self: Signal<T...>, ...: any)
-		local cn = self._head
-		while cn do
-			local thread
-			if #freeThreads > 0 then
-				thread = freeThreads[#freeThreads]
-				freeThreads[#freeThreads] = nil
-			else
-				thread = coroutine.create(yielder)
-				coroutine.resume(thread)
-			end
-
-			if not cn._varargs then
-				task.spawn(thread, cn._fn, thread, ...)
-			else
-				local args = cn._varargs
-				local len = #args
-				local count = len
-				for _, value in { ... } do
-					count += 1
-					args[count] = value
-				end
-
-				task.spawn(thread, cn._fn, thread, table.unpack(args))
-
-				for i = count, len + 1, -1 do
-					args[i] = nil
-				end
-			end
-
-			cn = cn._next
+local function fire<T...>(self: Signal<T...>, ...: any)
+	local cn = self._head
+	while cn do
+		local thread
+		if #freeThreads > 0 then
+			thread = freeThreads[#freeThreads]
+			freeThreads[#freeThreads] = nil
+		else
+			thread = coroutine.create(yielder)
+			coroutine.resume(thread)
 		end
-	end
-	else function<T...>(self: Signal<T...>, ...: any)
-		local cn = self._head
-		while cn do
-			local thread
-			if #freeThreads > 0 then
-				thread = freeThreads[#freeThreads]
-				freeThreads[#freeThreads] = nil
-			else
-				thread = coroutine.create(yielder)
-				coroutine.resume(thread)
+
+		if not cn._varargs then
+			task.spawn(thread, cn._fn, thread, ...)
+		else
+			local args = cn._varargs
+			local len = #args
+			local count = len
+			for _, value in { ... } do
+				count += 1
+				args[count] = value
 			end
 
-			if not cn._varargs then
-				local passed, message = coroutine.resume(thread, cn._fn, thread, ...)
-				if not passed then
-					print(string.format("%s\nstacktrace:\n%s", message, debug.traceback()))
-				end
-			else
-				local args = cn._varargs
-				local len = #args
-				local count = len
-				for _, value in { ... } do
-					count += 1
-					args[count] = value
-				end
+			task.spawn(thread, cn._fn, thread, table.unpack(args))
 
-				local passed, message = coroutine.resume(thread, cn._fn, thread, table.unpack(args))
-				if not passed then
-					print(string.format("%s\nstacktrace:\n%s", message, debug.traceback()))
-				end
-
-				for i = count, len + 1, -1 do
-					args[i] = nil
-				end
+			for i = count, len + 1, -1 do
+				args[i] = nil
 			end
-
-			cn = cn._next
 		end
+
+		cn = cn._next
 	end
+end
 
 local function disconnectAll<T...>(self: Signal<T...>)
 	local cn = self._head
@@ -239,14 +194,6 @@ function Signal.new<T...>(): Signal<T...>
 	return setmetatable({ _head = false }, Signal)
 end
 
-function Signal.wrap<T...>(signal: RBXScriptSignal): Signal<T...>
-	local wrapper = setmetatable({ _head = false }, Signal)
-	wrapper.RBXScriptConnection = rbxConnect(signal, function(...)
-		fire(wrapper, ...)
-	end)
-	return wrapper
-end
-
 --\\ Methods
 Signal.Connect = connect
 Signal.Once = once
@@ -255,4 +202,4 @@ Signal.Fire = fire
 Signal.DisconnectAll = disconnectAll
 Signal.Destroy = destroy
 
-return { new = Signal.new, wrap = Signal.wrap }
+return Signal

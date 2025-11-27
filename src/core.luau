@@ -12,10 +12,10 @@
       • Start the framework and hook into RunService events
 ]]
 
-local Components = require(script.Parent.components)
-local DependencyResolver = require(script.Parent.dependency_resolver)
-local LifeCycle = require(script.Parent.life_cycle)
-local Utils = require(script.Parent.utils)
+local Components = require(script.Parent.Components)
+local DependencyResolver = require(script.Parent.DependencyResolver)
+local LifeCycle = require(script.Parent.LifeCycle)
+local Utils = require(script.Parent.Utils)
 local Promise = require(script.Parent.Parent.Promise)
 
 local throw = Utils.throw

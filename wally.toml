@@ -1,7 +1,7 @@
 [package]
 name = "alexeylegasov63/leafframeworkrbx"
 description = "LeafFramework is a lightweight modular Roblox framework inspired by Flamework (Roblox-TS)"
-version = "0.2.2"
+version = "0.2.3"
 license = "MIT"
 authors = ["AlexeyLegasov63"]
 registry = "https://github.com/UpliftGames/wally-index"
@@ -18,5 +18,3 @@ include = [
 
 [dependencies]
 Promise = "evaera/promise@4.0.0"
-LemonSignal = "kineticwallet/lemon-signal@1.10.0"
-Trove = "sleitnick/trove@1.7.0"

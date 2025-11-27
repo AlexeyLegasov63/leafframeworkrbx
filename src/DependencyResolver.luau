@@ -3,7 +3,7 @@
     Dependency resolver
 ]]
 
-local Utils = require(script.Parent.utils)
+local Utils = require(script.Parent.Utils)
 
 local throw = Utils.throw
 
@@ -67,7 +67,6 @@ function DepedencyResolver.requireModulesDeep(directory, type)
 end
 
 --[[
-    selene: allow()
     Resolves a dependency
     @param name The name of the dependency
     @return The module
