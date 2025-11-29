@@ -4,15 +4,15 @@ local Workspace = game:GetService("Workspace")
 -- Just for example
 
 local FullyExampleComponent = {
-    -- Name = "NiceComponent" (If you don't want to use the component's module script name as the name)
+	-- Name = "NiceComponent" (If you don't want to use the component's module script name as the name)
 
-    --[[ 
+	--[[ 
         The tag to watch for (Via CollectionService)
         Don't add if you don't want to use tags
     ]]
-    Tag = "SomeCoolTag",
+	Tag = "SomeCoolTag",
 
-    --[[ 
+	--[[ 
         Short auto predicate that would be useful
         If you have only one type of instances that you want to work with
         Has more priority than Predicate, so if it returns false, the instance will be ignored 
@@ -20,9 +20,9 @@ local FullyExampleComponent = {
 
         string - Instance ClassName (:IsA)
     ]]
-    Instance = "Player",
- 
-    --[[
+	Instance = "Player",
+
+	--[[
         The predicate for the instances
         Return true if the instance suits your needs
         Otherwise false and the instance will be ignored
@@ -30,48 +30,45 @@ local FullyExampleComponent = {
 
         (instance: Instance) -> boolean
     ]]
-    Predicate = function(instance)
-        return true 
-    end,
+	Predicate = function(instance)
+		return true
+	end,
 
-    --[[
-        Custom superclass for the component (This is not OOP, just a custom parent)
+	--[[
+        Custom superclass for the component (Auto OOP)
         
-    Super = {...implementation of the super class}
+    Super = "BaseComponent"
 
-        WARNING:
-            Attributes and Cleaner 
-            are parts of the BaseComponent - default component super class
-            That adds automatically if you don't specify a custom superclass (Kept this field undefined)
+        Will be automatically set to "BaseComponent" if not specified
     ]]
 
-    --[[
+	--[[
         Ignore all descendants of these instances
 
         {Instance}
     ]]
-    BlacklistedAncestors = {Workspace, ReplicatedStorage},
+	BlacklistedAncestors = { Workspace, ReplicatedStorage },
 
-    --[[
+	--[[
         Whitelist ancestors for blacklisted instances
 
         {Instance}
     ]]
-    WhitelistedAncestors = {Workspace.CoolDir, ReplicatedStorage.Somewhere},
+	WhitelistedAncestors = { Workspace.CoolDir, ReplicatedStorage.Somewhere },
 
-    --[[
+	--[[
         BaseComponent attributes like in Flamework
         Synchronized attributes proxy to Instance attributes
 
         {string: Any Roblox attributes supported type}
     ]]
-    Attributes = {
-        Num = 1
-    }
+	Attributes = {
+		Num = 1,
+	},
 }
 
 function FullyExampleComponent:onSpawn()
-    --[[
+	--[[
         Inherited auto cleaner from BaseComponent:
 
     self.Cleaner = Trove.new()
@@ -79,42 +76,42 @@ function FullyExampleComponent:onSpawn()
         Will be automatically destroyed on despawn. Use it to store connections and etc.
     ]]
 
-    print("Spawned")
+	print("Spawned")
 
-    --[[
+	--[[
         Also inherited from BaseComponent
         Listens for the attribute changes
 
         Returns a connection that can be disconnected manually
         Or automatically disconnected on despawn (Via Cleaner)
     ]]
-    local optionalConnection = self.onAttributeChanged("Num", function(newValue, oldValue)
-        print("Num changed from", oldValue, "to", newValue)
-    end)
+	local optionalConnection = self.onAttributeChanged("Num", function(newValue, oldValue)
+		print("Num changed from", oldValue, "to", newValue)
+	end)
 
-    -- optionalConnection:Disconnect() It's a basic RBXScriptConnection
+	-- optionalConnection:Disconnect() It's a basic RBXScriptConnection
 end
 
 function FullyExampleComponent:onDespawn()
-    print("Despawned")
+	print("Despawned")
 end
 
 -- Heartbeat LifeCycle Hook
 function FullyExampleComponent:onTick(dt)
-    print("Tick", dt)
-    
-    self.Attributes.Num += 1 -- Will update the Instance attribute
+	print("Tick", dt)
+
+	self.Attributes.Num += 1 -- Will update the Instance attribute
 end
 
 -- Post-Simulation LifeCycle Hook
 function FullyExampleComponent:onPhysics(dt)
-    print("Physics", dt)
+	print("Physics", dt)
 end
 
 -- RenderStepped LifeCycle Hook
 -- Won't work on server cause it's client-only
 function FullyExampleComponent:onRender(dt)
-    print("Render", dt)
+	print("Render", dt)
 end
 
 return FullyExampleComponent

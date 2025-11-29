@@ -20,7 +20,11 @@
             • Attributes (table)  - Default attributes and types
 --]]
 
+local Utils = require(script.Parent.Parent.Utils)
 local Cleaner = require(script.Parent.Parent.Utils.Cleaner)
+
+local throw = Utils.throw
+local try = Utils.try
 
 local BaseComponent = {
 	Name = "BaseComponent",
@@ -49,18 +53,25 @@ local function storeInstanceAttributes(self)
 
 	-- Setup attributes from Instance
 	for key, default in pairs(self.Attributes or {}) do
-		local current = self.Instance:GetAttribute(key)
-		if current == nil then
-			self.Instance:SetAttribute(key, default)
-			attributes[key] = default
-		else
-			attributes[key] = current
-		end
+		try(
+			function()
+				local current = self.Instance:GetAttribute(key)
+				if current == nil then
+					self.Instance:SetAttribute(key, default)
+					attributes[key] = default
+				else
+					attributes[key] = current
+				end
 
-		-- Watch for external changes on this attribute
-		self.Cleaner:add(self.Instance:GetAttributeChangedSignal(key):Connect(function()
-			attributes[key] = self.Instance:GetAttribute(key)
-		end))
+				-- Watch for external changes on this attribute
+				self._InternalCleaner:add(self.Instance:GetAttributeChangedSignal(key):Connect(function()
+					attributes[key] = self.Instance:GetAttribute(key)
+				end))
+			end,
+			`Failed to load attribute {key} for component {self.Name}. Is it a valid Roblox attribute type? {type(
+				default
+			)}`
+		)
 	end
 
 	-- Two-way binding between self.Attributes and Instance attributes
@@ -79,16 +90,42 @@ end
     Lifecycle hook: called when the component appears in the world (spawn phase)
 
     Responsibilities:
-      • Creates a Trove cleaner instance for automatic disconnection.
+      • Creates a simple cleaner instance for automatic disconnection.
       • Initializes and binds attributes.
       • Sets up internal state.
-
-    Important:
-      • Do not override this directly. Instead, call `self.Super.onSpawn(self)` 
-        from your subclass's onSpawn method to preserve cleanup behavior.
+    
+    Init Properties:
+      • self.Name: Custom name for this component (Default is module script name)
+      • self.Super: Super component name (Default is "BaseComponent")
+      • self.Instance: Short instance ClassName validator
+      • self.Attributes: Proxy table for accessing instance attributes
+      • self.WhitelistedAncestors: List of whitelisted ancestors for this component
+      • self.BlacklistedAncestors: List of blacklisted ancestors for this component
+            Default: [ 
+                ReplicatedFirst, 
+                ReplicatedStorage,
+                ServerStorage,
+                StarterPack, 
+                StarterGui,
+                StarterPlayer
+            ]
+      • self.Tag: CollectionService tag for this component
+      • self.Predicate: Predicate for this component
+    
+    Result Properties:
+      • self.Attributes: Proxy table
+      • self.Cleaner: Cleaner instance
+      • self.Instance: Roblox Instance that this component is bound to
+      • self.Tag: CollectionService tag
+      • self.Name: Current component name
+      • self.Super: Super component class (Use for calling super methods and access fields)
 --]]
 function BaseComponent:onSpawn()
-	self.Cleaner = Cleaner.new()
+	self._InternalCleaner = Cleaner.new()
+
+	-- Create another cleaner instance for custom tasks
+	self.Cleaner = self._InternalCleaner:extend()
+
 	storeInstanceAttributes(self)
 end
 
@@ -99,16 +136,13 @@ end
       • Cleanup of any connections, threads, and data owned by the component.
       • Called automatically when the Instance is removed from the game or
         manually when the framework despawns this component.
-
-    Override behavior:
-      • You may extend this method but should always call `self.Super.onDespawn(self)`.
 --]]
 function BaseComponent:onDespawn()
-	if not self.Cleaner then
-		return
+	if not self._InternalCleaner then
+		return -- Idk what you're trying to do man
 	end
-	self.Cleaner:cleanup() -- Destroy all connections and etc.
-	self.Cleaner = nil
+	self._InternalCleaner:cleanup() -- Destroy all connections and etc.
+	self._InternalCleaner = nil
 end
 
 --[[
@@ -139,7 +173,7 @@ function BaseComponent:onAttributeChanged(attribute, callback)
 		callback(newValue, oldValue)
 	end)
 
-	self.Cleaner:add(connection) -- Automatically disconnect on despawn
+	self._InternalCleaner:add(connection) -- Automatically disconnect on despawn
 
 	return connection
 end
@@ -159,6 +193,6 @@ end
 -- Prevent changes to the super class
 return setmetatable(BaseComponent, {
 	__newindex = function()
-		error(`[Leaf] The super class cannot be changed!`, 4)
+		throw(`The super class cannot be changed!`)
 	end,
 })

@@ -83,7 +83,7 @@ end
 ]]
 function LeafFramework.run(config: FrameworkConfig?)
 	if started then
-		throw("[Leaf] Framework has already been started.")
+		throw("Framework has already been started.")
 	end
 
 	started = true

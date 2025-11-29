@@ -1,23 +1,20 @@
 # LeafFramework
 
-**LeafFramework** — lightweight, modular Roblox framework built around **components**, **services**, and **lifecycle events**. Manages dependencies, asynchronous initialization, and per-frame updates efficiently. Very influenced by the **Flamework**.
+**LeafFramework** - is a Roblox framework built on **components**, **services**, and **lifecycle events**. Created by me out of a longing for **Flamework** :)
 
 ## Features
 
-- **Components**: attachable to any `Instance` via `CollectionService` tags.
-- **Services / Controllers**: modular, dependency-aware, loaded in proper order.
-- **Lifecycle**: `onInit`, `onStart`, `onTick`, `onPhysics`, `onRender`.
-- **Asynchronous initialization** using `Promise`.
-- **Attributes**: synchronized properties on components (`self.Attributes`), auto-updates with Instance.
-- **Reusable thread system** for efficient lifecycle execution.
+- **Services/Controllers**: modular, dependency-aware, loaded in proper order.
+- **Components**: used by controllers and services.
 - **Dependency Resolver**: topological sorting, circular dependency detection.
+- **Component Inheritance**: fast inherit components simply by specifying their name
 
 ## Installation
 
 ### Wally
 
 ```ini
-Leaf = "alexeylegasov63/leafframeworkrbx@0.2.2"
+Leaf = "alexeylegasov63/leafframeworkrbx@0.2.4"
 ```
 
 ## Usage
@@ -64,46 +61,24 @@ return HelloService
 ### Creating a Component
 
 ```lua
--- examples/components/PlayerInfoComponent.lua
-local PlayerInfoComponent = {
-    -- Name = "PlayerInfo" (If you don't want to use the component's module script name as the name)
-
+local BobComponent = {
+    -- Name = "BobComponent" (If you don't want to use the component's module script name as the name)
+    Tag = "SomeCoolTag", -- For CollectionService watching
+    Instance = "Player", -- Instance:IsA fast predicate
     Predicate = function(instance)
-        return instance:IsA("Player") -- Ensure the instance is a player
+        return instance.Name == "Bob" -- Ensure that the player's name is Bob
     end
 }
 
-function PlayerInfoComponent:onSpawn()
-    self:_disableDefaultNickname()
-    self:_createInfoBoard()
+function BobComponent:onSpawn()
+    print("Bob is here!")
 end
 
-function PlayerInfoComponent:_disableDefaultNickname()
-    -- Disable the default nickname
-    local humanoid = self.Instance:WaitForChild("Humanoid")
-    humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+function BobComponent:onDespawn()
+    print("Bye Bob... :c")
 end
 
-function PlayerInfoComponent:_createInfoBoard()
-    -- Create a billboard
-    local billboard = Instance.new("BillboardGui")
-    billboard.Size = UDim2.fromScale(2, 0.5)
-    billboard.Parent = self.Instance:WaitForChild("HumanoidRootPart")
-
-    -- Create a text label (the name of the player)
-    local label = Instance.new("TextLabel")
-    label.Parent = billboard
-    label.Text = self.Instance.Name -- Player character's name
-    label.TextScaled = true
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.Size = UDim2.fromScale(1, 1)
-    label.BackgroundTransparency = 1
-
-    -- Add the billboard to the cleaner for automatic cleanup after component removing
-    self.Cleaner:Add(billboard)
-end
-
-return PlayerInfoComponent
+return BobComponent
 ```
 
 ### Using a Component
@@ -111,26 +86,26 @@ return PlayerInfoComponent
 ```lua
 local PlayerInfoController = {
     Depends = {
-        Components = {} -- ? Use Components as dependency (Just like in Flamework)
+        Components = {} -- Use Components as dependency (Just like in Flamework)
     }
 }
 
--- ? A hook to the start lifecycle event
+-- A hook to the start lifecycle event
 function PlayerInfoController:onStart()
     self:_startLookingForComponents()
     self:_startLookingForPlayers()
 end
 
 function PlayerInfoController:_startLookingForComponents()
-    -- ? Will invoke the callback when the component is added
-    -- ? Also invokes the callback for already existing components
+    -- Will invoke the callback when the component is added
+    -- Also invokes the callback for already existing components
     local connection = self.Depends.Components.watchComponent("PlayerInfoComponent", function(component)
         print("PlayerInfoComponent added to", component.Instance.Name)
     end)
-    -- ? connection:Disconnect() Can be disconnected later
+    -- connection:Disconnect() Can be disconnected later
 end
 
--- ? Will invoke the callback when a player joins
+-- Will invoke the callback when a player joins
 function PlayerInfoController:_startLookingForPlayers()
     for _, player in pairs(Players:GetPlayers()) do
         task.defer(self._handlePlayerJoin, self, player) -- For already existing players
@@ -154,13 +129,13 @@ function PlayerInfoController:_handlePlayerJoin(player)
 end
 
 function PlayerInfoController:_handleCharSpawn(character)
-    -- ? Use the component's "Name" field in the table of the component definition or
-    -- ? the component's module script name
+    -- Use the component's "Name" field in the table of the component definition or
+    -- the component's module script name
 
     local playerInfo = self.Depends.Components.addComponent(character, "PlayerInfoComponent")
 
-    -- ? Will add the component to the virtual component holder of the instance (Character)
-    -- ? If the instance removes the component, it will be removed from the virtual component holder automatically
+    -- Will add the component to the virtual component holder of the instance (Character)
+    -- If the instance removes the component, it will be removed from the virtual component holder automatically
 
     -- ! It's impossible to have multiple instances of the same component on the same instance
 end
@@ -168,7 +143,7 @@ end
 return PlayerInfoController
 ```
 
-### Lifecycle Methods
+### LifeCycle Events Hooks
 
 ```lua
 function SomeService:onTick(dt)
@@ -183,8 +158,4 @@ end
 function SomeService:onRender()
     print("Render update")
 end
-```
-
-```bash
-argon build
 ```

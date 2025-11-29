@@ -2,10 +2,6 @@
     Leaf Framework Components Module
     Provides component-based architecture for Roblox entities (instances).
     Handles creation, lifecycle management, dependency resolution, and tagging.
-
-
-    TODO:
-        - Auto dependencies check resolver (For CollectionService)
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -19,6 +15,15 @@ local Utils = require(Root.Utils)
 
 local throw = Utils.throw
 local try = Utils.try
+
+local DEFAULT_ANCESTRY_BLACKLIST = {
+	game:GetService("ReplicatedFirst"),
+	game:GetService("ReplicatedStorage"),
+	game:GetService("ServerStorage"),
+	game:GetService("StarterPack"),
+	game:GetService("StarterGui"),
+	game:GetService("StarterPlayer"),
+}
 
 --[[
     Components Leaf Framework Module
@@ -75,7 +80,7 @@ function testForAncestry(component, instance)
 		end
 	end
 
-	local blacklist = component.BlacklistedAncestors
+	local blacklist = component.BlacklistedAncestors or DEFAULT_ANCESTRY_BLACKLIST
 
 	-- Check if the instance is a descendant of any of the blacklisted ancestors
 	-- If so, it doesn't pass the test
@@ -482,7 +487,7 @@ function Components.addComponent(instance: Instance, componentName: string, skip
 	local component = loadedComponents[componentName]
 
 	if not skipTest and not testInstance(component.Predicate, instance) then
-		error(`[Leaf] Instance '{instance:GetFullName()}' does not pass test for component '{componentName}'!`, 3)
+		throw(`Instance '{instance:GetFullName()}' does not pass test for component '{componentName}'!`, 3)
 	end
 
 	-- Check if the component already exists
@@ -494,15 +499,19 @@ function Components.addComponent(instance: Instance, componentName: string, skip
 	-- Create the component with the instance
 	local componentInstance = createComponentInstance(component, instance)
 
-	-- Put the component into the instance components container
-	instancesMap[instance][componentName] = componentInstance
-
 	resolveComponentDependencies(instance, component, componentInstance)
 
 	-- Call onSpawn
-	Utils.try(function()
+	local success = Utils.try(function()
 		invokeComponentMethod(componentInstance, "onSpawn")
 	end, `Failed to spawn component: {component.Tag}, instance: {instance:GetFullName()}`)
+
+	if not success then
+		return
+	end
+
+	-- Put the component into the instance components container
+	instancesMap[instance][componentName] = componentInstance
 
 	-- Register the component
 	LifeCycle.register(componentInstance)
