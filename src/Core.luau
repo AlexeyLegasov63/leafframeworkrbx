@@ -17,15 +17,16 @@ local DependencyResolver = require(script.Parent.DependencyResolver)
 local LifeCycle = require(script.Parent.LifeCycle)
 local Utils = require(script.Parent.Utils)
 local Promise = require(script.Parent.Parent.Promise)
+local Symbols = require(script.Parent.Symbols)
 
 local throw = Utils.throw
 
 export type FrameworkConfig = {
-    profiling: boolean?, -- Enable/disable profiling for lifecycle events
+	profiling: boolean?, -- Enable/disable profiling for lifecycle events
 }
 
 local Core = {
-    config = {} :: FrameworkConfig, -- Framework config
+	config = {} :: FrameworkConfig, -- Framework config
 }
 
 --[[
@@ -38,15 +39,15 @@ local ordered = {}
     Throws an error if circular dependency is detected.
 ]]
 function resolveDependencies()
-    local children = DependencyResolver.listAll()
+	local children = DependencyResolver.listAll()
 
 	local visited = {}
 	local temp = {}
 
 	local function visit(name: string)
-		if visited[name] then 
-            return -- Already visited
-        elseif temp[name] then
+		if visited[name] then
+			return -- Already visited
+		elseif temp[name] then
 			throw("Circular dependency detected at " .. name)
 		end
 
@@ -59,7 +60,7 @@ function resolveDependencies()
 
 		if child.Depends then
 			for depName in pairs(child.Depends) do
-			    visit(depName) -- Visit all dependencies
+				visit(depName) -- Visit all dependencies
 			end
 		end
 
@@ -71,14 +72,14 @@ function resolveDependencies()
 		visit(name) -- Visit all children
 	end
 
-    -- Replace empty dependency tables with actual module references
-    for _, child in pairs(children) do
+	-- Replace empty dependency tables with actual module references
+	for _, child in pairs(children) do
 		if child.Depends then
-            for depName in pairs(child.Depends) do
-                child.Depends[depName] = children[depName]
-            end
+			for depName in pairs(child.Depends) do
+				child.Depends[depName] = children[depName]
+			end
 		end
-    end
+	end
 end
 
 --[[
@@ -86,9 +87,9 @@ end
     Higher priority modules (larger LoadOrder) load first.
 ]]
 function sortLoadedChildren()
-    -- Biggest priority == Earlier Load
+	-- Biggest priority == Earlier Load
 	table.sort(ordered, function(a, b)
-        -- Member Priority is nullable so we replace it with zero if nil
+		-- Member Priority is nullable so we replace it with zero if nil
 		local ap = a.LoadOrder or 0
 		local bp = b.LoadOrder or 0
 		return ap > bp
@@ -99,12 +100,12 @@ end
     Registers all non-component modules in the LifeCycle system.
 ]]
 function registerChildrenInLifeCycle()
-    for _, child in pairs(ordered) do
-        if child.Type == DependencyResolver.Component then
-            continue
-        end
-        LifeCycle.register(child)
-    end
+	for _, child in pairs(ordered) do
+		if child[Symbols.Type] == DependencyResolver[Symbols.Component] then
+			continue
+		end
+		LifeCycle.register(child)
+	end
 end
 
 --[[
@@ -114,24 +115,27 @@ end
     @return Promise - resolves when all lifecycle calls are completed
 ]]
 function invokeLifeCycleMethodsAsync(lifeCycle, ...)
-    local varargs = table.pack(...) -- Convert to array
-    local promises = {} -- Promise array
+	local varargs = table.pack(...) -- Convert to array
+	local promises = {} -- Promise array
 
-    for _, child in pairs(ordered) do
-        local impl = child[lifeCycle] -- Get implementation 
-        if type(impl) ~= "function" then
+	for _, child in pairs(ordered) do
+		local impl = child[lifeCycle] -- Get implementation
+		if type(impl) ~= "function" then
 			continue -- There's no such function in the child or it's not a function
 		end
 
-        table.insert(promises, Promise.try(function()
-            debug.setmemorycategory(child.Name) -- Mark for debug
-            return impl(child, table.unpack(varargs)) -- Safe call
-        end))
-    end
+		table.insert(
+			promises,
+			Promise.try(function()
+				debug.setmemorycategory(child.Name) -- Mark for debug
+				return impl(child, table.unpack(varargs)) -- Safe call
+			end)
+		)
+	end
 
-    return Promise.all(promises):andThen(function()
-        debug.resetmemorycategory()
-    end)
+	return Promise.all(promises):andThen(function()
+		debug.resetmemorycategory()
+	end)
 end
 
 --[[
@@ -140,23 +144,23 @@ end
     @return Promise - resolves when all modules are initialized (onInit)
 ]]
 function Core.initialize(config: FrameworkConfig?)
-    Core.config = config or {}
+	Core.config = config or {}
 
-    -- Add Components as a possible dependency
-    DependencyResolver.addCustomDependency("Components", Components.dependency) -- Add components as a custom dependency
+	-- Add Components as a possible dependency
+	DependencyResolver.addCustomDependency("Components", Components.dependency, Symbols.ServiceOrController) -- Add components as a custom dependency
 
-    -- Resolve dependencies
-    resolveDependencies()
-    -- Sort loaded children (LoadOrder)
-    sortLoadedChildren()
-    -- Register children
-    registerChildrenInLifeCycle()
+	-- Resolve dependencies
+	resolveDependencies()
+	-- Sort loaded children (LoadOrder)
+	sortLoadedChildren()
+	-- Register children
+	registerChildrenInLifeCycle()
 
-    -- Initialize components
-    Components.initialize()
+	-- Initialize components
+	Components.initialize()
 
-    -- Invoke onInit
-    return invokeLifeCycleMethodsAsync("onInit")
+	-- Invoke onInit
+	return invokeLifeCycleMethodsAsync("onInit")
 end
 
 --[[
@@ -164,11 +168,11 @@ end
     @return Promise - resolves when all modules have started (onStart) and lifecycle events are hooked
 ]]
 function Core.start()
-    -- Invoke onStart
-    return invokeLifeCycleMethodsAsync("onStart"):andThen(function()
-        -- Initialize LifeCycle module (Heartbeat, PreSimulation, RenderStepped)
-        LifeCycle.initialize(Core.config.profiling)
-    end)
+	-- Invoke onStart
+	return invokeLifeCycleMethodsAsync("onStart"):andThen(function()
+		-- Initialize LifeCycle module (Heartbeat, PreSimulation, RenderStepped)
+		LifeCycle.initialize(Core.config.profiling)
+	end)
 end
 
 return Core

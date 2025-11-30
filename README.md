@@ -8,13 +8,14 @@
 - **Components**: used by controllers and services.
 - **Dependency Resolver**: topological sorting, circular dependency detection.
 - **Component Inheritance**: fast inherit components simply by specifying their name
+- **Networking**: doesn't include any network utility
 
 ## Installation
 
 ### Wally
 
 ```ini
-Leaf = "alexeylegasov63/leafframeworkrbx@0.2.4"
+Leaf = "alexeylegasov63/leafframeworkrbx@0.2.5"
 ```
 
 ## Usage

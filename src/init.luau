@@ -9,6 +9,7 @@ local RunService = game:GetService("RunService")
 
 local Core = require(script.Core)
 local DependencyResolver = require(script.DependencyResolver)
+local Symbols = require(script.Symbols)
 local Utils = require(script.Utils)
 
 local throw = Utils.throw
@@ -25,7 +26,7 @@ local started = false
     @param directory - The directory to scan
 ]]
 function addChildren(directory)
-	DependencyResolver.requireModules(directory, DependencyResolver.ServiceOrController)
+	DependencyResolver.requireModules(directory, Symbols.ServiceOrController)
 end
 
 --[[
@@ -33,7 +34,7 @@ end
     @param directory - The directory to scan
 ]]
 function addDeep(directory)
-	DependencyResolver.requireModulesDeep(directory, DependencyResolver.ServiceOrController)
+	DependencyResolver.requireModulesDeep(directory, Symbols.ServiceOrController)
 end
 
 --[[
@@ -58,7 +59,7 @@ end
     Components are treated as dependency-aware, attribute-synced modules.
 ]]
 LeafFramework.addComponents = function(directory)
-	DependencyResolver.requireModules(directory, DependencyResolver.Component)
+	DependencyResolver.requireModules(directory, Symbols.Component)
 end
 
 --[[
@@ -68,7 +69,7 @@ end
     Useful when organizing components in nested folders by feature or domain.
 ]]
 LeafFramework.addComponentsDeep = function(directory)
-	DependencyResolver.requireModulesDeep(directory, DependencyResolver.Component)
+	DependencyResolver.requireModulesDeep(directory, Symbols.Component)
 end
 
 --[[

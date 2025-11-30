@@ -1,3 +1,10 @@
+--[[
+    Cleaner (Maid by Quenty) Utility Module
+    Handles the automatic cleanup of disposable resources like RBXScriptConnections,
+    Instances (Destroy), and cancellable functions (e.g., coroutines/tasks).
+    Helps to prevent memory leaks and ensures proper resource disposal upon component despawn.
+]]
+
 local Utils = require(script.Parent)
 
 local throw = Utils.throw
@@ -5,12 +12,22 @@ local try = Utils.try
 
 local CLEANER_SYMBOL = newproxy()
 
---[[
-    Cleaner (Maid) Utility Module
-    Handles the automatic cleanup of disposable resources like RBXScriptConnections,
-    Instances (Destroy), and cancellable functions (e.g., coroutines/tasks).
-    Helps to prevent memory leaks and ensures proper resource disposal upon component despawn.
-]]
+local CLEANER_ALLOWED_TYPES = {
+	["Instance"] = true,
+	["RBXScriptConnection"] = true,
+	["thread"] = true,
+	["table"] = true,
+	["function"] = true,
+}
+
+local CLEANER_CLEAN_METHODS = {
+	"Destroy",
+	"Disconnect",
+	"Cancel",
+	"destroy",
+	"disconnect",
+	"cancel",
+}
 
 local Cleaner = { [CLEANER_SYMBOL] = true }
 Cleaner.__index = Cleaner
@@ -21,21 +38,27 @@ Cleaner.__index = Cleaner
     @return True if the value can be cleaned up, otherwise false
 ]]
 function assureIsCleanable(value: any): boolean
-	if
-		typeof(value) == "RBXScriptConnection"
-		or (type(value) == "table" and value.ClassName == "LemonSignalConnection")
-	then
-		-- RBXScriptConnection, or custom SignalConnection (like LemonSignalConnection)
-		return true
-	elseif type(value) == "thread" then
-		-- Cancellable threads (tasks)
-		return true
-	elseif type(value) == "table" then
-		-- Table/Object with a Destroy/Disconnect/Cancel method
-		return value.Destroy or value.Disconnect or value.Cancel or value[CLEANER_SYMBOL]
+	local primaryType = type(value)
+
+	-- Check custom types
+	if primaryType == "table" then
+		if value[CLEANER_SYMBOL] then
+			return true -- It's a cleaner, sub garbage
+		end
+
+		for _, method in CLEANER_CLEAN_METHODS do
+			if not value[method] then
+				continue
+			end
+
+			return true
+		end
+
+		return false
 	end
 
-	return false
+	return CLEANER_ALLOWED_TYPES[primaryType] -- For primitive types
+		or CLEANER_ALLOWED_TYPES[typeof(value)] -- For Roblox types
 end
 
 --[[
@@ -43,20 +66,52 @@ end
     @param item The item to be cleaned up
 ]]
 function clearItem(item)
-	if typeof(item) == "RBXScriptConnection" or (type(item) == "table" and item.Disconnect) then
-		item:Disconnect() -- For signals (for Connections)
-	elseif type(item) == "table" then
+	local primaryType = type(item)
+
+	if primaryType == "function" then
+		item() -- Call the function
+		return
+	elseif primaryType == "thread" then
+		task.cancel(item) -- Cancel the thread
+
+		local cancelled
+		if coroutine.running() ~= item then
+			cancelled = pcall(function()
+				task.cancel(item)
+			end)
+		end
+
+		if not cancelled then
+			local toCancel = item
+			task.defer(function()
+				task.cancel(toCancel)
+			end)
+		end
+
+		return
+	elseif primaryType == "table" then
 		if item[CLEANER_SYMBOL] then
-			item:cleanup() -- For Cleaner (for Maid-like objects)
+			item:cleanup()
+			return -- It's a cleaner, sub garbage
+		end
+
+		for _, method in CLEANER_CLEAN_METHODS do
+			if not item[method] then
+				return
+			end
+
+			item[method](item) -- Call the method
+
 			return
 		end
-		local method = item.Destroy or item.Cancel
+	end
 
-		method(item) -- Custom Destroy/Cancel for
-	elseif type(item) == "function" then
-		item() -- For custom cancellable objects or tasks)
-	elseif type(item) == "thread" then
-		task.cancel(item) -- For Threads (task.cancel is usually used)
+	local secondaryType = typeof(item)
+
+	if secondaryType == "RBXScriptConnection" then
+		item:Disconnect()
+	elseif secondaryType == "Instance" then
+		item:Destroy()
 	end
 end
 
@@ -97,12 +152,17 @@ end
     Calls Disconnect, Destroy, or Cancel as appropriate.
 ]]
 function Cleaner:cleanup()
-	for _, item in self._garbage do
-		try(clearItem, "Unable to clean up item", item)
-	end
+	local garbage = self._garbage
 
 	-- Clear the garbage list
-	self._garbage = {}
+	local index, item = next(garbage)
+	while item ~= nil do
+		garbage[index] = nil
+
+		try(clearItem, "Unable to clean up item", item)
+
+		index, item = next(garbage)
+	end
 end
 
 return Cleaner

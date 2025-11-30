@@ -8,6 +8,7 @@ local CollectionService = game:GetService("CollectionService")
 
 local Root = script.Parent
 local BaseComponent = require(script.BaseComponent)
+local Symbols = require(script.Parent.Symbols)
 local DependencyResolver = require(Root.DependencyResolver)
 local LifeCycle = require(Root.LifeCycle)
 local Signal = require(Root.Utils.Signal)
@@ -44,7 +45,7 @@ function assertIfNotExists(componentName)
 	if loadedComponents[componentName] then
 		return -- Component exists, all is ok
 	end
-	error(`[Leaf] Component '{componentName}' does not exist!`, 3)
+	throw(`Component '{componentName}' does not exist!`, 3)
 end
 
 -- Ensures that the instance has a tag
@@ -141,9 +142,10 @@ function watchForInstances(component)
 		local success, componentInstance = try(
 			Components.addComponent,
 			`Failed to call constructor for instance {instance:GetFullName()}`,
+			Components,
 			instance,
 			name,
-			true
+			true -- Skip test, we already did it
 		)
 
 		if not success then
@@ -161,21 +163,24 @@ function watchForInstances(component)
 			try(
 				Components.removeComponent,
 				`Failed to remove component {name} from instance {instance:GetFullName()}`,
+				Components,
 				instance,
 				name
 			)
 		end)
 
 		-- Check if the component has BaseComponent as a super class
-		if componentInstance.Super == BaseComponent then
-			componentInstance.Cleaner:Add(connection) -- Manual cleanup
+		if componentInstance:isA("BaseComponent") == BaseComponent then
+			componentInstance[Symbols.Cleaner]:Add(connection) -- Manual cleanup
 		end
 	end
 
+	-- Already existing instances
 	for _, instance in pairs(CollectionService:GetTagged(tag)) do
 		task.defer(wrapper, instance)
 	end
 
+	-- New instances
 	CollectionService:GetInstanceAddedSignal(tag):Connect(wrapper)
 end
 
@@ -187,6 +192,7 @@ end
 function invokeSharedComponentMethod(componentInstance, methodName)
 	local super = componentInstance.Super
 
+	-- Invoke all the methods
 	while super ~= nil do
 		local method = super[methodName]
 
@@ -241,13 +247,13 @@ function resolveComponentDependencies(instance, component, componentInstance)
 	for dependencyName in pairs(component.Depends) do
 		local dependency = DependencyResolver.resolve(dependencyName)
 
-		if dependency.Type == DependencyResolver.ServiceOrController then
+		if dependency[Symbols.Type] == Symbols.ServiceOrController then
 			componentInstance.Depends[dependencyName] = dependency -- Just add the child
 			continue
 		end
 
 		-- Otherwise if it's a component
-		local dependencyInstance = Components.addComponent(instance, dependencyName) -- Create component if it doesn't exist
+		local dependencyInstance = Components:addComponent(instance, dependencyName) -- Create component if it doesn't exist
 		componentInstance.Depends[dependencyName] = dependencyInstance
 	end
 end
@@ -259,20 +265,11 @@ function getSuperComponentClass(module)
 	local superClass = module["Super"]
 
 	-- Fully custom component
-	if type(superClass) == "string" then
+	if type(superClass) == "string" and superClass ~= "BaseComponent" then
 		return DependencyResolver.resolve(superClass)
 	end
 
 	return BaseComponent -- Default
-end
-
---[[
-    Creates a new component class
-]]
-function createNewComponent(class, super)
-	class.__index = class
-	class.Super = super
-	return setmetatable(class, super)
 end
 
 --[[
@@ -289,27 +286,32 @@ function topologicalComponentsInheritanceSort(components)
 		end
 
 		temp[name] = true
+
+		-- Add to history
 		table.insert(inheritance, name)
 
 		local component = components[name]
 
 		if not component then
-			throw(`Unknown component: {name} in {table.concat(inheritance, " -> ")} -> {name}`)
+			throw(`Unknown component: {name} in {table.concat(inheritance, " -> ")} -> ?{name}? `)
 		end
 
-		if type(component.Super) == "string" then
-			visit(component.Super)
+		if type(component.Super) == "string" and component.Super ~= "BaseComponent" then
+			visit(component.Super) -- Visit the super class
 		elseif component.Super then
 			throw(`Unknown super class {component.Super} for component {name}`)
 		end
 
+		-- Remove the last element from history
 		table.remove(inheritance, #inheritance)
+
 		temp[name] = nil
 		visited[name] = true
 
 		table.insert(sorted, name)
 	end
 
+	-- Visit all components
 	for name in pairs(components) do
 		visit(name)
 	end
@@ -320,18 +322,22 @@ end
 --[[
     Check if componentClass is a descendant of otherComponentClass
     @param componentClass Component
-    @param otherComponentClass Component
+    @param otherComponentClass Component or string
 ]]
 function componentClassIs(componentClass, otherComponentClass)
-	local otherClassName = otherComponentClass.Name
+	local otherClassName = type(otherComponentClass) == "string" and otherComponentClass or otherComponentClass.Name
 	local selfClass = componentClass
 
 	while selfClass ~= nil do
-		if selfClass.Name == otherClassName then
+		local selfClassName = selfClass.Name
+
+		if selfClassName == otherClassName then
 			return true
+		elseif selfClassName == "BaseComponent" then
+			return false
 		end
 
-		selfClass = componentClass.Super
+		selfClass = selfClass.Super
 	end
 
 	return false
@@ -394,7 +400,7 @@ function initializeComponents()
 	local components = {}
 
 	for _, module in pairs(loaded) do
-		if module.Type ~= DependencyResolver.Component then
+		if module[Symbols.Type] ~= Symbols.Component then
 			continue
 		end
 		components[module.Name] = module
@@ -414,7 +420,7 @@ end
     @param componentName Name of the component
     @return An array of component instances
 ]]
-function Components.getComponents(componentName: string)
+function Components:getComponents(componentName: string)
 	assertIfNotExists(componentName)
 
 	local instances = {}
@@ -438,7 +444,7 @@ end
     @param componentName Name of the component
     @return An array of instances
 ]]
-function Components.getInstancesWithComponent(componentName: string)
+function Components:getInstancesWithComponent(componentName: string)
 	assertIfNotExists(componentName)
 
 	local withComponent = {}
@@ -458,7 +464,7 @@ end
     @param componentName Name of the component
     @return A component instance or nil
 ]]
-function Components.getComponent(instance: Instance, componentName: string)
+function Components:getComponent(instance: Instance, componentName: string)
 	assertIfNotExists(componentName)
 	return instancesMap[instance] and instancesMap[instance][componentName]
 end
@@ -469,8 +475,24 @@ end
     @param componentName Name of the component
     @return True if the instance has the component otherwise false
 ]]
-function Components.hasComponent(instance: Instance, componentName: string)
-	return Components.getComponent(instance, componentName) ~= nil
+function Components:hasComponent(instance: Instance, componentName: string)
+	return Components:getComponent(instance, componentName) ~= nil
+end
+
+--[[
+    Check if component is a descendant of otherComponent (InstanceOf)
+    @param componentName Name of the component
+    @param otherComponentName Name of the other component
+    @return True if the component is a descendant otherwise false
+]]
+function Components:componentIsA(componentName, otherComponentName)
+	assertIfNotExists(componentName) -- Component
+	assertIfNotExists(otherComponentName) -- Other component
+
+	local component = loadedComponents[componentName]
+	local otherComponent = loadedComponents[otherComponentName]
+
+	return componentClassIs(component, otherComponent)
 end
 
 --[[
@@ -480,7 +502,7 @@ end
     @param skipTest Skip the test (Ancestry, type, predicate checkings)
     @return A component instance that was added otherwise the already existing one
 ]]
-function Components.addComponent(instance: Instance, componentName: string, skipTest: boolean?)
+function Components:addComponent(instance: Instance, componentName: string, skipTest: boolean?)
 	assertIfNotExists(componentName)
 	assureComponentContainerExists(instance)
 
@@ -544,7 +566,7 @@ end
     @param componentName string Name of the component
     @return True if the component was removed otherwise false
 ]]
-function Components.removeComponent(instance, componentName)
+function Components:removeComponent(instance, componentName)
 	assertIfNotExists(componentName)
 
 	local component = loadedComponents[componentName]
@@ -600,11 +622,11 @@ end
     @param callback Callback function
     @return Callback that removes the connection 
 ]]
-function Components.watchComponent(component, callback)
+function Components:watchComponent(component, callback)
 	assertIfNotExists(component)
 	do
 		-- Do it in a new block to not keep the references
-		local alreadyExisting = Components.getComponents(component)
+		local alreadyExisting = Components:getComponents(component)
 
 		-- Invoke the callback for the already existing instances
 		for _, instance in pairs(alreadyExisting) do

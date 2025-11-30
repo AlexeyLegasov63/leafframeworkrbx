@@ -20,6 +20,7 @@
             • Attributes (table)  - Default attributes and types
 --]]
 
+local Symbols = require(script.Parent.Parent.Symbols)
 local Utils = require(script.Parent.Parent.Utils)
 local Cleaner = require(script.Parent.Parent.Utils.Cleaner)
 
@@ -64,11 +65,11 @@ local function storeInstanceAttributes(self)
 				end
 
 				-- Watch for external changes on this attribute
-				self._InternalCleaner:add(self.Instance:GetAttributeChangedSignal(key):Connect(function()
+				self[Symbols.Cleaner]:add(self.Instance:GetAttributeChangedSignal(key):Connect(function()
 					attributes[key] = self.Instance:GetAttribute(key)
 				end))
 			end,
-			`Failed to load attribute {key} for component {self.Name}. Is it a valid Roblox attribute type? {type(
+			`Failed to load attribute {key} for component {self.Name}. Is it a valid Roblox attribute type? {typeof(
 				default
 			)}`
 		)
@@ -121,12 +122,13 @@ end
       • self.Super: Super component class (Use for calling super methods and access fields)
 --]]
 function BaseComponent:onSpawn()
-	self._InternalCleaner = Cleaner.new()
+	self[Symbols.Cleaner] = Cleaner.new()
+
+	-- Initialize attributes
+	storeInstanceAttributes(self)
 
 	-- Create another cleaner instance for custom tasks
-	self.Cleaner = self._InternalCleaner:extend()
-
-	storeInstanceAttributes(self)
+	self.Cleaner = self[Symbols.Cleaner]:extend()
 end
 
 --[[
@@ -138,11 +140,7 @@ end
         manually when the framework despawns this component.
 --]]
 function BaseComponent:onDespawn()
-	if not self._InternalCleaner then
-		return -- Idk what you're trying to do man
-	end
-	self._InternalCleaner:cleanup() -- Destroy all connections and etc.
-	self._InternalCleaner = nil
+	self[Symbols.Cleaner]:cleanup() -- Destroy all connections and etc.
 end
 
 --[[
@@ -173,7 +171,7 @@ function BaseComponent:onAttributeChanged(attribute, callback)
 		callback(newValue, oldValue)
 	end)
 
-	self._InternalCleaner:add(connection) -- Automatically disconnect on despawn
+	self[Symbols.Cleaner]:add(connection) -- Automatically disconnect on despawn
 
 	return connection
 end
