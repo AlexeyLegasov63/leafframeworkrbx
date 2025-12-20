@@ -44,25 +44,40 @@ function resolveDependencies()
 	local visited = {}
 	local temp = {}
 
+	local chain = {}
+
+	-- Topological sort
+
 	local function visit(name: string)
 		if visited[name] then
 			return -- Already visited
 		elseif temp[name] then
-			throw("Circular dependency detected at " .. name)
+			throw(`Circular dependency detected at {table.concat(chain, " -> ")} -> {name}`)
 		end
 
 		temp[name] = true
 
+		-- Add to history
+		table.insert(chain, name)
+
 		local child = children[name]
+
 		if not child then
-			throw("Missing child dependency: " .. name)
+			throw(`Missing dependency <{name}> in {table.concat(chain, " -> ")}`)
 		end
 
 		if child.Depends then
-			for _, depName in pairs(child.Depends) do
+			for aliasName, depName in pairs(child.Depends) do
+				if type(depName) ~= "string" then
+					throw(`Invalid dependency type of <{aliasName}> in <{name}>, expected string got {type(depName)}`)
+					continue
+				end
 				visit(depName) -- Visit all dependencies
 			end
 		end
+
+		-- Remove the last element from history
+		table.remove(chain)
 
 		visited[name] = true
 		table.insert(ordered, child)
@@ -145,23 +160,25 @@ end
     @return Promise - resolves when all modules are initialized (onInit)
 ]]
 function Core.initialize(config: FrameworkConfig?)
-	Core.config = config or {}
+	return Promise.new(function()
+		Core.config = config or {}
 
-	-- Add Components as a possible dependency
-	DependencyResolver.addCustomDependency("Components", Components.dependency, Symbols.ServiceOrController) -- Add components as a custom dependency
+		-- Add Components as a possible dependency
+		DependencyResolver.addCustomDependency("Components", Components.dependency, Symbols.ServiceOrController) -- Add components as a custom dependency
 
-	-- Resolve dependencies
-	resolveDependencies()
-	-- Sort loaded children (LoadOrder)
-	sortLoadedChildren()
-	-- Register children
-	registerChildrenInLifeCycle()
+		-- Resolve dependencies
+		resolveDependencies()
+		-- Sort loaded children (LoadOrder)
+		sortLoadedChildren()
+		-- Register children
+		registerChildrenInLifeCycle()
 
-	-- Initialize components
-	Components.initialize()
+		-- Initialize components
+		Components.initialize()
 
-	-- Invoke onInit
-	return invokeLifeCycleMethodsAsync("onInit")
+		-- Invoke onInit
+		invokeLifeCycleMethodsAsync("onInit"):await()
+	end)
 end
 
 --[[

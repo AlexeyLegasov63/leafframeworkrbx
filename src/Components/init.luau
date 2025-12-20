@@ -287,14 +287,14 @@ function topologicalComponentsInheritanceSort(components)
 
 		temp[name] = true
 
-		-- Add to history
-		table.insert(inheritance, name)
-
 		local component = components[name]
 
 		if not component then
-			throw(`Unknown component: {name} in {table.concat(inheritance, " -> ")} -> ?{name}? `)
+			throw(`Unknown super class <{name}> in {table.concat(inheritance, " -> ")}`)
 		end
+
+		-- Add to history
+		table.insert(inheritance, name)
 
 		if type(component.Super) == "string" and component.Super ~= "BaseComponent" then
 			visit(component.Super) -- Visit the super class

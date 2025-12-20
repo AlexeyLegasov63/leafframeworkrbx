@@ -13,6 +13,7 @@ local Symbols = require(script.Symbols)
 local Utils = require(script.Utils)
 
 local throw = Utils.throw
+local printStackTrace = Utils.printStackTrace
 
 export type FrameworkConfig = Core.FrameworkConfig
 
@@ -89,9 +90,13 @@ function LeafFramework.run(config: FrameworkConfig?)
 
 	started = true
 
-	return Core.initialize(config):andThen(function()
-		return Core.start()
-	end)
+	return Core.initialize(config)
+		:andThen(function()
+			return Core.start()
+		end)
+		:catch(function(msg)
+			printStackTrace(tostring(msg), "Framework failed to start")
+		end)
 end
 
 return LeafFramework
