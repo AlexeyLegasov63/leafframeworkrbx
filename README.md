@@ -87,7 +87,7 @@ return BobComponent
 ```lua
 local PlayerInfoController = {
     Depends = {
-        Components = {} -- Use Components as dependency (Just like in Flamework)
+        components = "Components" -- Use Components as dependency (Just like in Flamework)
     }
 }
 
@@ -100,7 +100,7 @@ end
 function PlayerInfoController:_startLookingForComponents()
     -- Will invoke the callback when the component is added
     -- Also invokes the callback for already existing components
-    local connection = self.Depends.Components.watchComponent("PlayerInfoComponent", function(component)
+    local connection = self.Depends.components.watchComponent("PlayerInfoComponent", function(component)
         print("PlayerInfoComponent added to", component.Instance.Name)
     end)
     -- connection:Disconnect() Can be disconnected later
@@ -133,7 +133,7 @@ function PlayerInfoController:_handleCharSpawn(character)
     -- Use the component's "Name" field in the table of the component definition or
     -- the component's module script name
 
-    local playerInfo = self.Depends.Components.addComponent(character, "PlayerInfoComponent")
+    local playerInfo = self.Depends.components.addComponent(character, "PlayerInfoComponent")
 
     -- Will add the component to the virtual component holder of the instance (Character)
     -- If the instance removes the component, it will be removed from the virtual component holder automatically
