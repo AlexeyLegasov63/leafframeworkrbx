@@ -244,17 +244,17 @@ function resolveComponentDependencies(instance, component, componentInstance)
 
 	componentInstance.Depends = {} -- I HATE THIS FUCKING LINE, I SPENT HOURS DEBUGGING IT
 
-	for dependencyName in pairs(component.Depends) do
+	for aliasName, dependencyName in pairs(component.Depends) do
 		local dependency = DependencyResolver.resolve(dependencyName)
 
 		if dependency[Symbols.Type] == Symbols.ServiceOrController then
-			componentInstance.Depends[dependencyName] = dependency -- Just add the child
+			componentInstance.Depends[aliasName] = dependency -- Just add the child
 			continue
 		end
 
 		-- Otherwise if it's a component
 		local dependencyInstance = Components:addComponent(instance, dependencyName) -- Create component if it doesn't exist
-		componentInstance.Depends[dependencyName] = dependencyInstance
+		componentInstance.Depends[aliasName] = dependencyInstance
 	end
 end
 

@@ -24,7 +24,6 @@ local Symbols = require(script.Parent.Parent.Symbols)
 local Utils = require(script.Parent.Parent.Utils)
 local Cleaner = require(script.Parent.Parent.Utils.Cleaner)
 
-local throw = Utils.throw
 local try = Utils.try
 
 local BaseComponent = {
@@ -188,9 +187,4 @@ function BaseComponent:destroy()
 	self.Instance:Destroy()
 end
 
--- Prevent changes to the super class
-return setmetatable(BaseComponent, {
-	__newindex = function()
-		throw(`The super class cannot be changed!`)
-	end,
-})
+return BaseComponent

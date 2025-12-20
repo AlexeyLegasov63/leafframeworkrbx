@@ -35,6 +35,14 @@ local FullyExampleComponent = {
 	end,
 
 	--[[
+        List of dependencies
+        {any string: DependencyName}
+    ]]
+	Depends = {
+		abc = "DependencyName",
+	},
+
+	--[[
         Custom superclass for the component (Auto OOP)
         
     Super = "BaseComponent"
@@ -77,6 +85,8 @@ function FullyExampleComponent:onSpawn()
     ]]
 
 	print("Spawned")
+
+	print(self.Depends.abc.Name) -- Will print "DependencyName"
 
 	--[[
         Also inherited from BaseComponent

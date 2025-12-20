@@ -59,7 +59,7 @@ function resolveDependencies()
 		end
 
 		if child.Depends then
-			for depName in pairs(child.Depends) do
+			for _, depName in pairs(child.Depends) do
 				visit(depName) -- Visit all dependencies
 			end
 		end
@@ -74,10 +74,11 @@ function resolveDependencies()
 
 	-- Replace empty dependency tables with actual module references
 	for _, child in pairs(children) do
-		if child.Depends then
-			for depName in pairs(child.Depends) do
-				child.Depends[depName] = children[depName]
-			end
+		if not child.Depends then
+			continue
+		end
+		for aliasName, depName in pairs(child.Depends) do
+			child.Depends[aliasName] = children[depName]
 		end
 	end
 end
