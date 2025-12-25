@@ -508,7 +508,7 @@ function Components:addComponent(instance: Instance, componentName: string, skip
 
 	local component = loadedComponents[componentName]
 
-	if not skipTest and not testInstance(component.Predicate, instance) then
+	if not skipTest and not testInstance(component, instance) then
 		throw(`Instance '{instance:GetFullName()}' does not pass test for component '{componentName}'!`, 3)
 	end
 

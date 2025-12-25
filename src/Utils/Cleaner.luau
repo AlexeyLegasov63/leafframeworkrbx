@@ -165,4 +165,7 @@ function Cleaner:cleanup()
 	end
 end
 
+-- Aliase
+Cleaner.destroy = Cleaner.cleanup
+
 return Cleaner

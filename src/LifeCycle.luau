@@ -161,7 +161,7 @@ end
     Initializes the weak maps for all lifecycle event registries.
     Weak maps ensure automatic cleanup when components are garbage-collected.
 ]]
-for lifeCycle in pairs(events) do
+for lifeCycle in events do
 	registers[lifeCycle] = Utils.newWeakMap()
 end
 

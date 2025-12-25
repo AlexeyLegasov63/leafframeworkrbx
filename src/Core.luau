@@ -160,7 +160,7 @@ end
     @return Promise - resolves when all modules are initialized (onInit)
 ]]
 function Core.initialize(config: FrameworkConfig?)
-	return Promise.new(function()
+	return Promise.resolve(function(resolve)
 		Core.config = config or {}
 
 		-- Add Components as a possible dependency
@@ -177,7 +177,7 @@ function Core.initialize(config: FrameworkConfig?)
 		Components.initialize()
 
 		-- Invoke onInit
-		invokeLifeCycleMethodsAsync("onInit"):await()
+		invokeLifeCycleMethodsAsync("onInit"):andThen(resolve)
 	end)
 end
 
@@ -187,10 +187,12 @@ end
 ]]
 function Core.start()
 	-- Invoke onStart
-	return invokeLifeCycleMethodsAsync("onStart"):andThen(function()
-		-- Initialize LifeCycle module (Heartbeat, PreSimulation, RenderStepped)
-		LifeCycle.initialize(Core.config.profiling)
-	end)
+	invokeLifeCycleMethodsAsync("onStart")
+		:andThen(function()
+			-- Initialize LifeCycle module (Heartbeat, PreSimulation, RenderStepped)
+			LifeCycle.initialize(Core.config.profiling)
+		end)
+		:await()
 end
 
 return Core
