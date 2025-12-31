@@ -90,13 +90,9 @@ function LeafFramework.run(config: FrameworkConfig?)
 
 	started = true
 
-	return Core.initialize(config)
-		:andThen(function()
-			return Core.start()
-		end)
-		:catch(function(msg)
-			printStackTrace(tostring(msg), "Framework failed to start")
-		end)
+	return Core.initialize(config):andThen(Core.start):catch(function(msg)
+		printStackTrace(tostring(msg), "Framework failed to start")
+	end)
 end
 
 return LeafFramework

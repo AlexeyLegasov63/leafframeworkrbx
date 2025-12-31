@@ -160,7 +160,7 @@ end
     @return Promise - resolves when all modules are initialized (onInit)
 ]]
 function Core.initialize(config: FrameworkConfig?)
-	return Promise.resolve(function(resolve)
+	return Promise.new(function(resolve)
 		Core.config = config or {}
 
 		-- Add Components as a possible dependency
@@ -177,7 +177,7 @@ function Core.initialize(config: FrameworkConfig?)
 		Components.initialize()
 
 		-- Invoke onInit
-		invokeLifeCycleMethodsAsync("onInit"):andThen(resolve)
+		invokeLifeCycleMethodsAsync("onInit"):await()
 	end)
 end
 

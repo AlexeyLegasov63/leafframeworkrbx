@@ -15,7 +15,7 @@
 ### Wally
 
 ```ini
-Leaf = "alexeylegasov63/leafframeworkrbx@0.2.7"
+Leaf = "alexeylegasov63/leafframeworkrbx@0.2.8"
 ```
 
 ## Usage
