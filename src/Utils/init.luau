@@ -13,8 +13,7 @@ end
 function Utils.printStackTrace(errorReport: string, message: string?)
 	warn(
 		`[Leaf] An error occurred!\n\t{message and `Message: {message}\n\t` or ""}Traceback: {debug.traceback(
-			errorReport,
-			2
+			errorReport
 		)}`
 	)
 end

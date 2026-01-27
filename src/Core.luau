@@ -142,9 +142,10 @@ function invokeLifeCycleMethodsAsync(lifeCycle, ...)
 
 		table.insert(
 			promises,
-			Promise.try(function()
+			Promise.new(function(r)
 				debug.setmemorycategory(child.Name) -- Mark for debug
-				return impl(child, table.unpack(varargs)) -- Safe call
+				impl(child, table.unpack(varargs)) -- Safe call
+				r()
 			end)
 		)
 	end
@@ -160,7 +161,7 @@ end
     @return Promise - resolves when all modules are initialized (onInit)
 ]]
 function Core.initialize(config: FrameworkConfig?)
-	return Promise.new(function(resolve)
+	return Promise.new(function(r)
 		Core.config = config or {}
 
 		-- Add Components as a possible dependency
@@ -178,6 +179,7 @@ function Core.initialize(config: FrameworkConfig?)
 
 		-- Invoke onInit
 		invokeLifeCycleMethodsAsync("onInit"):await()
+		r()
 	end)
 end
 

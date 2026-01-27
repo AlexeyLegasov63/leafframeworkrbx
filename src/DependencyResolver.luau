@@ -7,6 +7,7 @@ local Symbols = require(script.Parent.Symbols)
 local Utils = require(script.Parent.Utils)
 
 local throw = Utils.throw
+local try = Utils.try
 
 local DepedencyResolver = {}
 
@@ -18,7 +19,11 @@ local children = {}
     @param type Dependency type
 ]]
 function requireModule(module, type)
-	local requiredModule = require(module) :: any
+	local ok, requiredModule = try(require, `Failed to require module: {module.Name}`, module)
+
+	if not ok then
+		return -- Module failed to load
+	end
 
 	if not requiredModule["Name"] then
 		requiredModule.Name = module.Name -- Set the module name if empty
