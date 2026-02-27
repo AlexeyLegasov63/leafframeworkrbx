@@ -5,8 +5,10 @@
 ]]
 
 local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Root = script.Parent
+local Promise = require(ReplicatedStorage.Packages.Promise)
 local BaseComponent = require(script.BaseComponent)
 local Symbols = require(script.Parent.Symbols)
 local DependencyResolver = require(Root.DependencyResolver)
@@ -16,6 +18,8 @@ local Utils = require(Root.Utils)
 
 local throw = Utils.throw
 local try = Utils.try
+
+----------------------------------------------------------
 
 local DEFAULT_ANCESTRY_BLACKLIST = {
 	game:GetService("ReplicatedFirst"),
@@ -37,8 +41,12 @@ local Components = {
 Components.onComponentSpawned = Signal.new()
 Components.onComponentDespawned = Signal.new()
 
+local watchingTags = {} -- Tag -> ComponentName
 local loadedComponents = {} -- ComponentName -> ComponentClass
-local instancesMap = Utils.newWeakMap() -- Instance -> { ComponentName -> ComponentInstance }
+local instancesMap = Utils.newWeakMap() -- Instance -> Map<ComponentName, ComponentInstance>
+local componentToInstancesMap = Utils.newWeakMap() -- ComponentName -> Set<Instance>
+
+----------------------------------------------------------
 
 -- Ensures that the component exists
 function assertIfNotExists(componentName)
@@ -131,7 +139,14 @@ end
 -- Watch for instances with a specific tag
 function watchForInstances(component)
 	local name = component.Name
-	local tag = component.Tag
+	local tag = rawget(component, "Tag")
+
+	-- Exclude duplicate tags
+	if watchingTags[tag] then
+		throw(`Tag '{tag}' is already being watched by {watchingTags[tag]}. Component '{name}'!`)
+	end
+
+	watchingTags[tag] = name
 
 	local wrapper = function(instance: Instance)
 		if not testInstance(component, instance) then
@@ -148,7 +163,7 @@ function watchForInstances(component)
 			true -- Skip test, we already did it
 		)
 
-		if not success then
+		if not success or not componentInstance then
 			return
 		end
 
@@ -189,37 +204,29 @@ end
     @param componentInstance ComponentInstance
     @param methodName string
 ]]
-function invokeSharedComponentMethod(componentInstance, methodName)
-	local super = componentInstance.Super
+function invokeComponentMethod(componentInstance, methodName)
+	local super = componentInstance
+	local last = nil
+
+	local tree = {}
 
 	-- Invoke all the methods
 	while super ~= nil do
 		local method = super[methodName]
 
-		if type(method) == "function" then
-			method(componentInstance)
+		if type(method) == "function" and method ~= last then
+			table.insert(tree, method)
 		end
 
+		last = method
 		super = super.Super
 	end
-end
 
---[[
-    Invokes a method of the component if it exists
-]]
-function invokeComponentMethod(componentInstance, methodName, ...)
-	-- Auto invoke life cycle methods
-	if methodName == "onSpawn" or methodName == "onDespawn" then
-		invokeSharedComponentMethod(componentInstance, methodName)
+	-- Reverse the tree, so we'll invoke the methods in the correct order.
+	-- BaseComponent:new -> EntityComponent:new -> Animal:new
+	for i = #tree, 1, -1 do
+		tree[i](componentInstance)
 	end
-
-	local method = componentInstance[methodName]
-
-	if type(method) ~= "function" then
-		return
-	end
-
-	return method(componentInstance, ...)
 end
 
 --[[
@@ -243,9 +250,11 @@ function resolveComponentDependencies(instance, component, componentInstance)
 	end
 
 	componentInstance.Depends = {} -- I HATE THIS FUCKING LINE, I SPENT HOURS DEBUGGING IT
+	componentInstance[Symbols.IsInstance] = true
 
 	for aliasName, dependencyName in pairs(component.Depends) do
-		local dependency = DependencyResolver.resolve(dependencyName)
+		local dependency = type(dependencyName) == "string" and DependencyResolver.resolve(dependencyName)
+			or dependencyName
 
 		if dependency[Symbols.Type] == Symbols.ServiceOrController then
 			componentInstance.Depends[aliasName] = dependency -- Just add the child
@@ -365,30 +374,14 @@ function resolveComponentsInheritance(components)
 		local super = getSuperComponentClass(component)
 
 		component = setmetatable(component, {
-			__index = super, -- Inherit from the super class
-			__tostring = function()
-				return name -- Use the name as a symbol
-			end,
+			__index = super,
 		})
 		component.__index = component
 
 		component.Super = super -- Set super class table
+
+		components[name] = component
 	end
-end
-
---[[
-    Load a component module
-    @param module The module
-]]
-function loadComponent(component)
-	loadedComponents[component.Name] = component
-
-	if not component.Tag then
-		return -- Doesn't have a tag, so we don't need to do anything
-	end
-
-	-- Watch for instances with the tag
-	watchForInstances(component)
 end
 
 --[[
@@ -408,32 +401,73 @@ function initializeComponents()
 
 	resolveComponentsInheritance(components)
 
-	for _, module in pairs(components) do
-		loadComponent(module)
+	for _, component in pairs(components) do
+		loadedComponents[component.Name] = component
+		componentToInstancesMap[component.Name] = Utils.newWeakMap() -- ComponentName -> Set<Instance>
+	end
+
+	for _, component in pairs(components) do
+		if not rawget(component, "Tag") then
+			continue -- Doesn't have a tag, so we don't need to do anything
+		end
+
+		-- Watch for instances with the tag
+		watchForInstances(component)
 	end
 end
 
-----------------------------------------
+----------------------------------------------------------
+
+--[[
+    Get all the component instances
+    </br>Useful for OOP component inheritance
+    @param componentName Name of the component
+    @return {string} An array of component names
+]]
+function Components:getDescendantsOf(superName: string): { string }
+	assertIfNotExists(superName)
+
+	local tags = {}
+
+	for name in pairs(loadedComponents) do
+		if name == superName or not self:componentIsA(name, superName) then
+			continue -- Not a descendant
+		end
+
+		table.insert(tags, name)
+	end
+
+	return tags
+end
 
 --[[
     Get all the component instances
     @param componentName Name of the component
+    @param excludeDescendants Exclude descendants of the component
     @return An array of component instances
 ]]
-function Components:getComponents(componentName: string)
+function Components:getComponents(componentName: string, excludeDescendants: boolean?)
 	assertIfNotExists(componentName)
 
 	local instances = {}
+	local alreadyAdded = {}
 
-	for _, instanceComponents in pairs(instancesMap) do
-		local componentInstance = instanceComponents[componentName]
+	-- OOP descendants
+	local descendants = excludeDescendants and {} or self:getDescendantsOf(componentName)
+	table.insert(descendants, componentName)
 
-		-- Check if the component exists in the instance
-		if not componentInstance then
-			continue
+	for _, componentName in descendants do
+		local componentInstances = componentToInstancesMap[componentName]
+
+		for componentInstance in componentInstances do
+			-- Don't add the same instance twice
+			if alreadyAdded[componentInstance] then
+				continue
+			end
+			alreadyAdded[componentInstance] = true
+
+			table.insert(instances, componentInstance)
 		end
-
-		table.insert(instances, componentInstance)
 	end
 
 	return instances
@@ -442,16 +476,29 @@ end
 --[[
     Get all instances with a specific component
     @param componentName Name of the component
+    @param excludeDescendants Exclude descendants of the component
     @return An array of instances
 ]]
-function Components:getInstancesWithComponent(componentName: string)
+function Components:getInstancesWithComponent(componentName: string, excludeDescendants: boolean?)
 	assertIfNotExists(componentName)
 
 	local withComponent = {}
+	local alreadyAdded = {}
 
-	for _, instance in pairs(instancesMap) do
-		if instance[componentName] then
-			table.insert(withComponent, instance)
+	-- OOP descendants
+	local descendants = excludeDescendants and {} or self:getDescendantsOf(componentName)
+	table.insert(descendants, componentName)
+
+	for _, componentName in descendants do
+		local componentInstances = componentToInstancesMap[componentName]
+
+		for componentInstance in componentInstances do
+			-- Don't add the same instance twice
+			if alreadyAdded[componentInstance] then
+				continue
+			end
+			alreadyAdded[componentInstance] = true
+			table.insert(withComponent, componentInstance.Instance)
 		end
 	end
 
@@ -524,16 +571,15 @@ function Components:addComponent(instance: Instance, componentName: string, skip
 	resolveComponentDependencies(instance, component, componentInstance)
 
 	-- Call onSpawn
-	local success = Utils.try(function()
+	Utils.try(function()
 		invokeComponentMethod(componentInstance, "onSpawn")
 	end, `Failed to spawn component: {component.Tag}, instance: {instance:GetFullName()}`)
 
-	if not success then
-		return
-	end
-
 	-- Put the component into the instance components container
 	instancesMap[instance][componentName] = componentInstance
+
+	-- Add the component to the set
+	componentToInstancesMap[componentName][componentInstance] = true
 
 	-- Register the component
 	LifeCycle.register(componentInstance)
@@ -553,7 +599,7 @@ end
 -- Check for collisions
 function componentHasCollisions(componentInstance, componentsContainer)
 	for _, child in pairs(componentsContainer) do
-		if child.Depends[componentInstance.Name] then
+		if child.Depends and child.Depends[componentInstance.Name] then
 			return true
 		end
 	end
@@ -588,6 +634,9 @@ function Components:removeComponent(instance, componentName)
 	-- Update the instance's components container
 	instancesMap[instance][componentName] = nil
 
+	-- Update the component's instances container
+	componentToInstancesMap[componentName][componentInstance] = nil
+
 	-- Call destructor
 	Utils.try(function()
 		invokeComponentMethod(componentInstance, "onDespawn")
@@ -620,7 +669,7 @@ end
     Watch for component instances
     @param component Name of the component
     @param callback Callback function
-    @return Callback that removes the connection 
+    @return Connection
 ]]
 function Components:watchComponent(component, callback)
 	assertIfNotExists(component)
@@ -630,16 +679,38 @@ function Components:watchComponent(component, callback)
 
 		-- Invoke the callback for the already existing instances
 		for _, instance in pairs(alreadyExisting) do
-			task.defer(callback, instance)
+			task.spawn(callback, instance)
 		end
 	end
 
 	-- Watch for new instances
-	return Components.onComponentSpawned:Connect(function(tag, instance)
-		if tag ~= component then
+	return Components.onComponentSpawned:Connect(function(otherComponent, instance)
+		if otherComponent ~= component then
 			return
 		end
 		callback(instance)
+	end)
+end
+
+--[[
+    Watch for component instance
+    @param component Name of the component
+    @return Promise<string, Instance>
+]]
+function Components:waitForFirstComponent(component)
+	assertIfNotExists(component)
+
+	-- Check if the component already exists
+	local alreadyExisting = Components:getComponents(component)[1]
+
+	-- If so return it
+	if alreadyExisting then
+		return Promise.resolve(component, alreadyExisting)
+	end
+
+	-- Watch for new instances
+	return Promise.fromEvent(Components.onComponentSpawned, function(otherComponent)
+		return otherComponent == component -- Filter out other components, bad components, BAD
 	end)
 end
 

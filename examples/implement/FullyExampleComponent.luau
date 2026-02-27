@@ -95,7 +95,7 @@ function FullyExampleComponent:onSpawn()
         Returns a connection that can be disconnected manually
         Or automatically disconnected on despawn (Via Cleaner)
     ]]
-	local optionalConnection = self.onAttributeChanged("Num", function(newValue, oldValue)
+	local optionalConnection = self:onAttributeChanged("Num", function(newValue, oldValue)
 		print("Num changed from", oldValue, "to", newValue)
 	end)
 

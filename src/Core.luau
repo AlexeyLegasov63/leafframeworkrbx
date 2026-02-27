@@ -20,6 +20,7 @@ local Promise = require(script.Parent.Parent.Promise)
 local Symbols = require(script.Parent.Symbols)
 
 local throw = Utils.throw
+local try = Utils.try
 
 export type FrameworkConfig = {
 	profiling: boolean?, -- Enable/disable profiling for lifecycle events
@@ -117,9 +118,10 @@ end
 ]]
 function registerChildrenInLifeCycle()
 	for _, child in pairs(ordered) do
-		if child[Symbols.Type] == DependencyResolver[Symbols.Component] then
+		if child[Symbols.Type] ~= Symbols.ServiceOrController then
 			continue
 		end
+
 		LifeCycle.register(child)
 	end
 end
@@ -144,7 +146,7 @@ function invokeLifeCycleMethodsAsync(lifeCycle, ...)
 			promises,
 			Promise.new(function(r)
 				debug.setmemorycategory(child.Name) -- Mark for debug
-				impl(child, table.unpack(varargs)) -- Safe call
+				try(impl, `{child.Name}.{lifeCycle} failed`, child, table.unpack(varargs)) -- Safe call
 				r()
 			end)
 		)
@@ -178,8 +180,7 @@ function Core.initialize(config: FrameworkConfig?)
 		Components.initialize()
 
 		-- Invoke onInit
-		invokeLifeCycleMethodsAsync("onInit"):await()
-		r()
+		r(invokeLifeCycleMethodsAsync("onInit"))
 	end)
 end
 

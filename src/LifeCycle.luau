@@ -109,7 +109,7 @@ local function invokeLifeCycleMethods(lifeCycle, a, b, c)
 
 	for child, method in pairs(connected) do
 		reuseThread(profileYielding(function()
-			return method(child, a, b, c)
+			method(child, a, b, c)
 		end, child["Identifier"] or child.Name))
 	end
 end
