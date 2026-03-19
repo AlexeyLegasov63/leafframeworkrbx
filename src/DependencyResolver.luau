@@ -49,7 +49,9 @@ end
     @param type Dependency type
 ]]
 function DepedencyResolver.requireModules(directory, type)
-	for _, module in ipairs(directory:GetChildren()) do
+	assert(typeof(directory) == "Instance", `Expected directory to be an Instance, got {typeof(directory)}`)
+
+	for _, module in directory:GetChildren() do
 		if not module:IsA("ModuleScript") then
 			continue
 		end
@@ -63,6 +65,8 @@ end
     @param type Dependency type
 ]]
 function DepedencyResolver.requireModulesDeep(directory, type)
+	assert(typeof(directory) == "Instance", `Expected directory to be an Instance, got {typeof(directory)}`)
+
 	for _, module in ipairs(directory:GetDescendants()) do
 		if not module:IsA("ModuleScript") then
 			continue

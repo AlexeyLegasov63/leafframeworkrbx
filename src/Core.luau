@@ -14,7 +14,9 @@
 
 local Components = require(script.Parent.Components)
 local DependencyResolver = require(script.Parent.DependencyResolver)
+local ExtensionHandler = require(script.Parent.ExtensionHandler)
 local LifeCycle = require(script.Parent.LifeCycle)
+
 local Utils = require(script.Parent.Utils)
 local Promise = require(script.Parent.Parent.Promise)
 local Symbols = require(script.Parent.Symbols)
@@ -22,8 +24,18 @@ local Symbols = require(script.Parent.Symbols)
 local throw = Utils.throw
 local try = Utils.try
 
+--------------------------------------------------------------------------
+
 export type FrameworkConfig = {
-	profiling: boolean?, -- Enable/disable profiling for lifecycle events
+	profiling: boolean?, -- Enable/disable profiling
+	promiseTimeout: number?, -- Timeout for promises in lifecycle hooks
+}
+
+--------------------------------------------------------------------------
+
+local DEFAULT_CONFIG = {
+	profiling = false,
+	promiseTimeout = 10,
 }
 
 local Core = {
@@ -34,6 +46,8 @@ local Core = {
     Sorted modules after dependency resolution
 ]]
 local ordered = {}
+
+--------------------------------------------------------------------------
 
 --[[
     Perform topological sort to resolve dependencies.
@@ -68,7 +82,7 @@ function resolveDependencies()
 		end
 
 		if child.Depends then
-			for aliasName, depName in pairs(child.Depends) do
+			for aliasName, depName in child.Depends do
 				if type(depName) ~= "string" then
 					throw(`Invalid dependency type of <{aliasName}> in <{name}>, expected string got {type(depName)}`)
 					continue
@@ -93,7 +107,7 @@ function resolveDependencies()
 		if not child.Depends then
 			continue
 		end
-		for aliasName, depName in pairs(child.Depends) do
+		for aliasName, depName in child.Depends do
 			child.Depends[aliasName] = children[depName]
 		end
 	end
@@ -127,34 +141,51 @@ function registerChildrenInLifeCycle()
 end
 
 --[[
-    Executes a lifecycle method asynchronously across all modules using Promise.
-    @param lifeCycle string - method name (e.g. "onInit", "onStart")
-    @param ... any - arguments passed to each module's method
-    @return Promise - resolves when all lifecycle calls are completed
+    Applies extensions to all modules
 ]]
-function invokeLifeCycleMethodsAsync(lifeCycle, ...)
-	local varargs = table.pack(...) -- Convert to array
-	local promises = {} -- Promise array
-
+function applyExtensions()
 	for _, child in pairs(ordered) do
+		local isComponent = child[Symbols.Type] == Symbols.Component
+
+		ExtensionHandler:applyTo(child, isComponent)
+	end
+end
+
+--[[
+    Executes a lifecycle method for all children.
+    @param lifeCycle string - method name (e.g. "onInit", "onStart")
+]]
+function invokeLifeCycleMethods(lifeCycle: "onInit" | "onStart")
+	for _, child in ordered do
 		local impl = child[lifeCycle] -- Get implementation
 		if type(impl) ~= "function" then
 			continue -- There's no such function in the child or it's not a function
 		end
 
-		table.insert(
-			promises,
-			Promise.new(function(r)
-				debug.setmemorycategory(child.Name) -- Mark for debug
-				try(impl, `{child.Name}.{lifeCycle} failed`, child, table.unpack(varargs)) -- Safe call
-				r()
-			end)
-		)
+		debug.setmemorycategory(child.Name) -- Mark for profiling
+
+		local co = coroutine.create(impl)
+		local success, result = coroutine.resume(co, child)
+
+		if coroutine.status(co) == "suspended" then
+			throw(
+				`Error invoking {child.Name}.{lifeCycle}\nYielding is not allowed in lifecycle events!\nConsider use promise or task instead!`
+			)
+		end
+
+		if not success then
+			throw(`Error invoking {child.Name}.{lifeCycle}: {result}`)
+		elseif result ~= nil and Promise.is(result) then
+			local status, message = result:timeout(Core.config.promiseTimeout):awaitStatus()
+
+			-- Check if the promise was rejected
+			if status == Promise.Status.Rejected then
+				throw(`Rejected promise in {child.Name}.{lifeCycle}: {message}`)
+			end
+		end
 	end
 
-	return Promise.all(promises):andThen(function()
-		debug.resetmemorycategory()
-	end)
+	debug.resetmemorycategory()
 end
 
 --[[
@@ -164,8 +195,12 @@ end
 ]]
 function Core.initialize(config: FrameworkConfig?)
 	return Promise.new(function(r)
-		Core.config = config or {}
+		-- Initialize config
+		Core.config = setmetatable(config or {}, {
+			__index = DEFAULT_CONFIG, -- Use default for missing fields
+		})
 
+		-- TODO: Rewrite and use as an extension
 		-- Add Components as a possible dependency
 		DependencyResolver.addCustomDependency("Components", Components.dependency, Symbols.ServiceOrController) -- Add components as a custom dependency
 
@@ -173,6 +208,10 @@ function Core.initialize(config: FrameworkConfig?)
 		resolveDependencies()
 		-- Sort loaded children (LoadOrder)
 		sortLoadedChildren()
+
+		-- Apply extensions
+		applyExtensions()
+
 		-- Register children
 		registerChildrenInLifeCycle()
 
@@ -180,7 +219,9 @@ function Core.initialize(config: FrameworkConfig?)
 		Components.initialize()
 
 		-- Invoke onInit
-		r(invokeLifeCycleMethodsAsync("onInit"))
+		local success = try(invokeLifeCycleMethods, "onInit failed", "onInit")
+
+		r(success)
 	end)
 end
 
@@ -189,13 +230,15 @@ end
     @return Promise - resolves when all modules have started (onStart) and lifecycle events are hooked
 ]]
 function Core.start()
-	-- Invoke onStart
-	invokeLifeCycleMethodsAsync("onStart")
-		:andThen(function()
-			-- Initialize LifeCycle module (Heartbeat, PreSimulation, RenderStepped)
-			LifeCycle.initialize(Core.config.profiling)
-		end)
-		:await()
+	-- Invoke onInit
+	local success = try(invokeLifeCycleMethods, "onStart failed", "onStart")
+
+	if not success then
+		throw(`Framework start was not successful, check logs for more info, lifecycle has not been initialized!`)
+	end
+
+	-- Initialize LifeCycle module (Heartbeat, PreSimulation, RenderStepped)
+	LifeCycle.initialize(Core.config.profiling)
 end
 
 return Core

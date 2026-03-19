@@ -1,29 +1,16 @@
 --[[
-    Sleitnick's Symbol (https://github.com/Sleitnick)
-]]
-
---[[
     Symbols used for defining safe keys
-    @param name string
 ]]
-local function Symbol(name)
-	local symbol = newproxy(true)
-
-	getmetatable(symbol).__tostring = function()
-		return "Leaf@" .. name
-	end
-
-	return symbol
-end
+local symbol = require(script.Parent.Utils.Symbol)
 
 return table.freeze({
 	-- Common
-	Source = Symbol("Source"),
-	Type = Symbol("Type"),
+	Source = symbol("Source"),
+	Type = symbol("Type"),
 
-	Component = Symbol("Component"),
-	ServiceOrController = Symbol("ServiceOrController"),
+	Component = symbol("Component"),
+	ServiceOrController = symbol("ServiceOrController"),
 
 	-- Components
-	Cleaner = Symbol("Cleaner"),
+	Cleaner = symbol("Cleaner"),
 })

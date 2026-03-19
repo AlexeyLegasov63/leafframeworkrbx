@@ -5,12 +5,15 @@
 ]]
 
 local CollectionService = game:GetService("CollectionService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+----------------------------------------------------------
 
 local Root = script.Parent
-local Promise = require(ReplicatedStorage.Packages.Promise)
+local Promise = require(Root.Parent.Promise)
+
 local BaseComponent = require(script.BaseComponent)
-local Symbols = require(script.Parent.Symbols)
+
+local Symbols = require(Root.Symbols)
 local DependencyResolver = require(Root.DependencyResolver)
 local LifeCycle = require(Root.LifeCycle)
 local Signal = require(Root.Utils.Signal)
@@ -57,7 +60,7 @@ function assertIfNotExists(componentName)
 end
 
 -- Ensures that the instance has a tag
-function assureHasTag(instance, tag)
+function ensureHasTag(instance, tag)
 	if CollectionService:HasTag(instance, tag) then
 		return
 	end
@@ -65,7 +68,7 @@ function assureHasTag(instance, tag)
 end
 
 -- Ensures that the instance has a components container
-function assureComponentContainerExists(instance)
+function ensureComponentContainerExists(instance)
 	if instancesMap[instance] then
 		return true
 	end
@@ -235,6 +238,7 @@ end
 function createComponentInstance(component, instance)
 	local componentInstance = setmetatable({}, component)
 	componentInstance.Instance = instance
+	componentInstance.instance = instance -- Another alias
 	return componentInstance
 end
 
@@ -250,9 +254,8 @@ function resolveComponentDependencies(instance, component, componentInstance)
 	end
 
 	componentInstance.Depends = {} -- I HATE THIS FUCKING LINE, I SPENT HOURS DEBUGGING IT
-	componentInstance[Symbols.IsInstance] = true
 
-	for aliasName, dependencyName in pairs(component.Depends) do
+	for aliasName, dependencyName in component.Depends do
 		local dependency = type(dependencyName) == "string" and DependencyResolver.resolve(dependencyName)
 			or dependencyName
 
@@ -265,6 +268,9 @@ function resolveComponentDependencies(instance, component, componentInstance)
 		local dependencyInstance = Components:addComponent(instance, dependencyName) -- Create component if it doesn't exist
 		componentInstance.Depends[aliasName] = dependencyInstance
 	end
+
+	-- Make an alias
+	componentInstance.depends = componentInstance.Depends
 end
 
 --[[
@@ -392,6 +398,7 @@ function initializeComponents()
 
 	local components = {}
 
+	-- Get all the modules that were required as components
 	for _, module in pairs(loaded) do
 		if module[Symbols.Type] ~= Symbols.Component then
 			continue
@@ -399,6 +406,7 @@ function initializeComponents()
 		components[module.Name] = module
 	end
 
+	-- Resolve inheritance
 	resolveComponentsInheritance(components)
 
 	for _, component in pairs(components) do
@@ -551,7 +559,7 @@ end
 ]]
 function Components:addComponent(instance: Instance, componentName: string, skipTest: boolean?)
 	assertIfNotExists(componentName)
-	assureComponentContainerExists(instance)
+	ensureComponentContainerExists(instance)
 
 	local component = loadedComponents[componentName]
 
@@ -587,7 +595,7 @@ function Components:addComponent(instance: Instance, componentName: string, skip
 	-- Check if the component has tag
 	if component.Tag then
 		-- Add the tag to the instance if missing
-		assureHasTag(instance, component.Tag)
+		ensureHasTag(instance, component.Tag)
 	end
 
 	-- Fire public event
@@ -647,6 +655,7 @@ function Components:removeComponent(instance, componentName)
 		-- No more components
 		instancesMap[instance] = nil
 	else
+		-- TODO: Improve
 		-- There are more components, check for collisions and remove them
 		-- (Components that depend on this one)
 		for _, anotherComponentInstance in pairs(instancesMap[instance]) do

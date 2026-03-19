@@ -9,24 +9,39 @@ local RunService = game:GetService("RunService")
 
 local Core = require(script.Core)
 local DependencyResolver = require(script.DependencyResolver)
+local ExtensionHandler = require(script.ExtensionHandler)
 local Symbols = require(script.Symbols)
 local Utils = require(script.Utils)
 
 local throw = Utils.throw
 local printStackTrace = Utils.printStackTrace
 
+--------------------------------------------------------------------------
+
 export type FrameworkConfig = Core.FrameworkConfig
+
+--------------------------------------------------------------------------
 
 local LeafFramework = {}
 
 -- Internal state
 local started = false
 
+-- Internal helper
+local function assertIfStarted()
+	if started then
+		throw("Leaf has already been started.")
+	end
+end
+
+--------------------------------------------------------------------------
+
 --[[
     Adds controllers/services from a directory.
     @param directory - The directory to scan
 ]]
 function addChildren(directory)
+	assertIfStarted()
 	DependencyResolver.requireModules(directory, Symbols.ServiceOrController)
 end
 
@@ -35,6 +50,7 @@ end
     @param directory - The directory to scan
 ]]
 function addDeep(directory)
+	assertIfStarted()
 	DependencyResolver.requireModulesDeep(directory, Symbols.ServiceOrController)
 end
 
@@ -60,6 +76,7 @@ end
     Components are treated as dependency-aware, attribute-synced modules.
 ]]
 LeafFramework.addComponents = function(directory)
+	assertIfStarted()
 	DependencyResolver.requireModules(directory, Symbols.Component)
 end
 
@@ -70,8 +87,16 @@ end
     Useful when organizing components in nested folders by feature or domain.
 ]]
 LeafFramework.addComponentsDeep = function(directory)
+	assertIfStarted()
 	DependencyResolver.requireModulesDeep(directory, Symbols.Component)
 end
+
+function LeafFramework.addExtension(module: ModuleScript)
+	assertIfStarted()
+	return ExtensionHandler:addExtension(module)
+end
+
+--------------------------------------------------------------------------
 
 --[[
     Bootstraps the framework.
@@ -84,15 +109,15 @@ end
     @return Promise<void> - resolves once the framework is fully started.
 ]]
 function LeafFramework.run(config: FrameworkConfig?)
-	if started then
-		throw("Framework has already been started.")
-	end
+	assertIfStarted()
 
 	started = true
 
 	return Core.initialize(config):andThen(Core.start):catch(function(msg)
-		printStackTrace(tostring(msg), "Framework failed to start")
+		printStackTrace(tostring(msg), "Leaf failed to start")
 	end)
 end
+
+--------------------------------------------------------------------------
 
 return LeafFramework

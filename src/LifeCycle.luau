@@ -87,6 +87,7 @@ local function profileYielding(func, identifier)
 			debug.setmemorycategory(identifier)
 			func()
 			debug.resetmemorycategory()
+			debug.profileend()
 		end
 	else
 		return func

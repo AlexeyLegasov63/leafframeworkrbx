@@ -1,3 +1,3 @@
 # LeafFrameworkRbx Changelog
 
-1. Changed dependency declaration
+1. Changed initialization logic
