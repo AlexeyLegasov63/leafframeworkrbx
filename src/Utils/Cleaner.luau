@@ -128,6 +128,7 @@ end
 --[[
     Adds a cleanable item to the garbage list.
     @param item The item to be cleaned up later (Connection, Instance, Thread, etc.)
+    @return The given item
 ]]
 function Cleaner:add(item: any)
 	if not assureIsCleanable(item) then
@@ -135,6 +136,7 @@ function Cleaner:add(item: any)
 	end
 
 	table.insert(self._garbage, item)
+	return item
 end
 
 --[[
@@ -165,7 +167,7 @@ function Cleaner:cleanup()
 	end
 end
 
--- Aliase
+-- Alias
 Cleaner.destroy = Cleaner.cleanup
 
 return Cleaner

@@ -1,5 +1,4 @@
---[[
-    LifeCycle.lua
+--[=[
     Handles framework-wide lifecycle events and automatic per-frame updates.
 
     Features:
@@ -7,7 +6,7 @@
       • Automatically binds all registered objects with matching lifecycle methods
       • Uses a reusable coroutine thread for efficient task scheduling
       • Optional built-in profiling for debugging performance (debug.profilebegin)
-]]
+]=]
 
 local RunService = game:GetService("RunService")
 local Utils = require(script.Parent.Utils)
@@ -108,7 +107,7 @@ local function invokeLifeCycleMethods(lifeCycle, a, b, c)
 		return
 	end
 
-	for child, method in pairs(connected) do
+	for child, method in connected do
 		reuseThread(profileYielding(function()
 			method(child, a, b, c)
 		end, child["Identifier"] or child.Name))
@@ -122,7 +121,7 @@ end
 function LifeCycle.initialize(profiling)
 	isProfiling = profiling
 
-	for lifeCycle, signal in pairs(events) do
+	for lifeCycle, signal in events do
 		local errMessage = `Error invoking lifeCycle ({lifeCycle}) event`
 		signal:Connect(function(...)
 			try(invokeLifeCycleMethods, errMessage, lifeCycle, ...)
