@@ -6,7 +6,6 @@
 
 - **Services/Controllers**: modular, dependency-aware, loaded in proper order.
 - **Components**: used by controllers and services.
-- **Dependency Resolver**: topological sorting, circular dependency detection.
 - **Component Inheritance**: fast inherit components simply by specifying their name
 - **Networking**: doesn't include any network utility
 
