@@ -44,8 +44,13 @@ local Components = {
 Components.onComponentSpawned = Signal.new()
 Components.onComponentDespawned = Signal.new()
 
+-- Private:
+
 local watchingTags = {} -- Tag -> ComponentName
 local loadedComponents = {} -- ComponentName -> ComponentClass
+
+-- Runtime:
+
 local instancesMap = Utils.newWeakMap() -- Instance -> Map<ComponentName, ComponentInstance>
 local componentToInstancesMap = Utils.newWeakMap() -- ComponentName -> Set<Instance>
 
@@ -188,7 +193,7 @@ function watchForInstances(component)
 		end)
 
 		-- Check if the component has BaseComponent as a super class
-		if componentInstance:isA("BaseComponent") == BaseComponent then
+		if componentInstance:isA("BaseComponent") then
 			componentInstance[Symbols.Cleaner]:Add(connection) -- Manual cleanup
 		end
 	end
@@ -240,37 +245,6 @@ function createComponentInstance(component, instance)
 	componentInstance.Instance = instance
 	componentInstance.instance = instance -- Another alias
 	return componentInstance
-end
-
---[[
-    Resolve component dependencies
-    @param instance Instance
-    @param component Component
-    @param componentInstance ComponentInstance
-]]
-function resolveComponentDependencies(instance, component, componentInstance)
-	if not component.Depends then
-		return
-	end
-
-	componentInstance.Depends = {} -- I HATE THIS FUCKING LINE, I SPENT HOURS DEBUGGING IT
-
-	for aliasName, dependencyName in component.Depends do
-		local dependency = type(dependencyName) == "string" and DependencyResolver.resolve(dependencyName)
-			or dependencyName
-
-		if dependency[Symbols.Type] == Symbols.ServiceOrController then
-			componentInstance.Depends[aliasName] = dependency -- Just add the child
-			continue
-		end
-
-		-- Otherwise if it's a component
-		local dependencyInstance = Components:addComponent(instance, dependencyName) -- Create component if it doesn't exist
-		componentInstance.Depends[aliasName] = dependencyInstance
-	end
-
-	-- Make an alias
-	componentInstance.depends = componentInstance.Depends
 end
 
 --[[
@@ -576,8 +550,6 @@ function Components:addComponent(instance: Instance, componentName: string, skip
 	-- Create the component with the instance
 	local componentInstance = createComponentInstance(component, instance)
 
-	resolveComponentDependencies(instance, component, componentInstance)
-
 	-- Call onSpawn
 	Utils.try(function()
 		invokeComponentMethod(componentInstance, "onSpawn")
@@ -602,16 +574,6 @@ function Components:addComponent(instance: Instance, componentName: string, skip
 	Components.onComponentSpawned:Fire(component.Name, componentInstance)
 
 	return componentInstance
-end
-
--- Check for collisions
-function componentHasCollisions(componentInstance, componentsContainer)
-	for _, child in pairs(componentsContainer) do
-		if child.Depends and child.Depends[componentInstance.Name] then
-			return true
-		end
-	end
-	return false
 end
 
 --[[
@@ -654,18 +616,6 @@ function Components:removeComponent(instance, componentName)
 	if next(instancesMap[instance]) == nil then
 		-- No more components
 		instancesMap[instance] = nil
-	else
-		-- TODO: Improve
-		-- There are more components, check for collisions and remove them
-		-- (Components that depend on this one)
-		for _, anotherComponentInstance in pairs(instancesMap[instance]) do
-			-- Check for collisions (If another component has a dependency on this one)
-			if not componentHasCollisions(anotherComponentInstance, instancesMap[instance]) then
-				continue
-			end
-			-- Otherwise remove the component with its dependencies
-			Components.removeComponent(instance, anotherComponentInstance.Name)
-		end
 	end
 
 	-- Fire public event

@@ -6,10 +6,12 @@
 
 local RunService = game:GetService("RunService")
 
+local Components = require(script.Components)
 local Core = require(script.Core)
 local DependencyResolver = require(script.DependencyResolver)
 local ExtensionHandler = require(script.ExtensionHandler)
 local Symbols = require(script.Symbols)
+local Types = require(script.Types)
 local Utils = require(script.Utils)
 
 local throw = Utils.throw
@@ -17,11 +19,18 @@ local printStackTrace = Utils.printStackTrace
 
 --------------------------------------------------------------------------
 
-export type FrameworkConfig = Core.FrameworkConfig
+export type FrameworkConfig = Types.FrameworkConfig
+export type BaseComponent<IT, ST = nil> = Types.BaseComponent<IT, ST>
+export type Components = Types.Components
+export type Cleaner = Types.Cleaner
+export type Signal<T...> = Types.Signal<T...>
+export type LifeCycleHooks = Types.LifeCycleHooks
 
 --------------------------------------------------------------------------
 
-local LeafFramework = {}
+local LeafFramework = {
+	Components = Components.dependency :: Types.Components,
+}
 
 -- Internal state
 local started = false

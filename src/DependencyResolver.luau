@@ -92,7 +92,7 @@ end
 
 --[[
     Lists all loaded modules
-    @return An array of modules
+    @return Map<name, module>
 ]]
 function DepedencyResolver.listAll()
 	return children

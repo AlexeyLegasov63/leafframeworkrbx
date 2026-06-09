@@ -176,14 +176,23 @@ function BaseComponent:onAttributeChanged(attribute, callback)
 end
 
 --[[
+    Adds a task to the cleaner instance.
+    This is a shortcut for cleaner:add.
+
+    @param t any -- Task to add
+    @return t
+]]
+function BaseComponent:onDestroy<T>(t: T): T
+	self.Cleaner:add(t)
+	return t
+end
+
+--[[
     Destroys the underlying Instance.
     This is a convenience method for cases where a component should
     explicitly delete its associated object (e.g., temporary visual effects)
 --]]
 function BaseComponent:destroy()
-	if not self.Instance then
-		return
-	end
 	self.Instance:Destroy()
 end
 
