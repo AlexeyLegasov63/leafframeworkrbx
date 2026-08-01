@@ -1,3 +1,7 @@
+--!strict
+
+local Signal = require(script.Parent.Utils.Signal)
+
 export type Node = {
 	Name: string,
 }
@@ -14,26 +18,30 @@ export type Cleaner = {
     cleanup: (self: Cleaner) -> (),
 }
 
-export type Signal<T...> = {
-    Connect: (self: Signal<T...>, callback: (T...) -> ()) -> RBXScriptConnection,
-    Wait: (self: Signal<T...>) -> (T...),
-    Fire: (self: Signal<T...>, T...) -> (),
-}
+export type Connection<U...> = Signal.Connection<U...>
 
-export type Component<IT, ST = nil> = LifeCycleHooks & Node & {
+export type Signal<T...> = Signal.Signal<T...>
+
+export type Component<IT, ST = nil, Args... = ()> = LifeCycleHooks & Node & {
 	Instance: IT, -- Instance
 	Tag: string?, -- Tag
 	Super: ST?, -- Superclass
 
     -- InstanceOf check
     isA: (self: Component<IT, ST>, component: string) -> boolean,
-    
+
     -- Lifecycle
-    onSpawn: (self: Component<IT, ST>) -> (),
+    onSpawn: (self: Component<IT, ST>, Args...) -> (),
     onDespawn: (self: Component<IT, ST>) -> (),
 }
 
-export type BaseComponent<IT, ST = nil> = Component<IT, ST> & {
+--[[
+    BaseComponent class
+
+    @param IT Instance
+    @param ST? Superclass
+]]
+export type BaseComponent<IT, ST = nil, Args... = ()> = Component<IT, ST, Args...> & {
 	Attributes: { [string]: any }?,
 
     Cleaner: Cleaner,
@@ -51,6 +59,9 @@ export type BaseComponent<IT, ST = nil> = Component<IT, ST> & {
 
     -- Utility (Destroys the instance)
     destroy: (self: BaseComponent<IT, ST>) -> (),
+
+    -- Utility (Removes the component from the instance)
+    remove: (self: BaseComponent<IT, ST>) -> (),
 }
 
 export type Components = {
@@ -61,7 +72,7 @@ export type Components = {
     getDescendantsOf: (self: Components, component: string) -> { string },
     getInstancesWithComponent: (self: Components, component: string, excludeDescendants: boolean?) -> { Instance },
 
-    addComponent: (self: Components, instance: Instance, componentName: string, skipTest: boolean?) -> (),
+    addComponent: (self: Components, instance: Instance, componentName: string, skipTest: boolean?, ...any) -> (),
     removeComponent: (self: Components, instance: Instance, componentName: string) -> boolean,
 
     getComponent: <T> (self: Components, instance: Instance, componentName: string) -> T?,
@@ -70,7 +81,7 @@ export type Components = {
     componentIsA: (self: Components, instance: Instance, componentName: string, component: string) -> boolean,
 
     onComponentSpawned: Signal<string, BaseComponent<Instance>>,
-    onComponentDespawned: Signal<string, BaseComponent<Instance>,
+    onComponentDespawned: Signal<string, BaseComponent<Instance>>,
 }
 
 --------------------------------------------------------------------------

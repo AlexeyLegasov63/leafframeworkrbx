@@ -43,6 +43,17 @@ local ordered = {}
 --------------------------------------------------------------------------
 
 --[[
+    Loads all dependencies
+]]
+function loadDependencies()
+	local dependencies = DependencyResolver.listAll()
+
+	for _, dependency in dependencies do
+		table.insert(ordered, dependency)
+	end
+end
+
+--[[
     Sort modules by LoadOrder.
     Higher priority modules (larger LoadOrder) load first.
 ]]
@@ -84,7 +95,7 @@ end
     Executes a lifecycle method for all children.
     @param lifeCycle string - method name (e.g. "onInit", "onStart")
 ]]
-function invokeLifeCycleMethods(lifeCycle: "onInit" | "onStart")
+function invoke(lifeCycle: "onInit" | "onStart")
 	for _, child in ordered do
 		local impl = child[lifeCycle] -- Get implementation
 		if type(impl) ~= "function" then
@@ -129,6 +140,9 @@ function Core.initialize(config: Types.FrameworkConfig?)
 			__index = DEFAULT_CONFIG, -- Use default for missing fields
 		})
 
+		-- Resolve dependencies
+		loadDependencies()
+
 		-- Sort loaded children (LoadOrder)
 		sortLoadedChildren()
 
@@ -142,7 +156,7 @@ function Core.initialize(config: Types.FrameworkConfig?)
 		Components.initialize()
 
 		-- Invoke onInit
-		local success = try(invokeLifeCycleMethods, "onInit failed", "onInit")
+		local success = try(invoke, "onInit failed", "onInit")
 
 		r(success)
 	end)
@@ -154,7 +168,7 @@ end
 ]]
 function Core.start()
 	-- Invoke onInit
-	local success = try(invokeLifeCycleMethods, "onStart failed", "onStart")
+	local success = try(invoke, "onStart failed", "onStart")
 
 	if not success then
 		throw(`Framework start was not successful, check logs for more info, lifecycle has not been initialized!`)

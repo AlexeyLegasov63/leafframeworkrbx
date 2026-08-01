@@ -1,3 +1,4 @@
 # LeafFrameworkRbx Changelog
 
-1. Changed initialization logic
+1. Fixes
+2. Added add component params

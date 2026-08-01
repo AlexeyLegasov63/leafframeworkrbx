@@ -30,6 +30,9 @@ export type LifeCycleHooks = Types.LifeCycleHooks
 
 local LeafFramework = {
 	Components = Components.dependency :: Types.Components,
+	Flags = {
+		Auto = Symbols.Auto,
+	},
 }
 
 -- Internal state

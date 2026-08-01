@@ -168,7 +168,8 @@ function watchForInstances(component)
 			Components,
 			instance,
 			name,
-			true -- Skip test, we already did it
+			true, -- Skip test, we already did it
+			Symbols.Auto -- Mark as auto added component
 		)
 
 		if not success or not componentInstance then
@@ -194,7 +195,7 @@ function watchForInstances(component)
 
 		-- Check if the component has BaseComponent as a super class
 		if componentInstance:isA("BaseComponent") then
-			componentInstance[Symbols.Cleaner]:Add(connection) -- Manual cleanup
+			componentInstance[Symbols.Cleaner]:add(connection) -- Manual cleanup
 		end
 	end
 
@@ -209,10 +210,11 @@ end
 
 --[[
     Invokes all the methods of the OOP hierarchy of the component
-    @param componentInstance ComponentInstance
-    @param methodName string
+    @param componentInstance ComponentInstance to invoke
+    @param methodName string Method name 
+    @param ... Additional arguments which will be passed to the method
 ]]
-function invokeComponentMethod(componentInstance, methodName)
+function invokeComponentMethod(componentInstance, methodName, ...: any)
 	local super = componentInstance
 	local last = nil
 
@@ -233,8 +235,27 @@ function invokeComponentMethod(componentInstance, methodName)
 	-- Reverse the tree, so we'll invoke the methods in the correct order.
 	-- BaseComponent:new -> EntityComponent:new -> Animal:new
 	for i = #tree, 1, -1 do
-		tree[i](componentInstance)
+		tree[i](componentInstance, ...)
 	end
+	--[[ 
+        NOTE: For custom arguments to pass to the super class, just make an additional method, like onConstruct
+        
+        - Example:
+
+        local EntityComponent = {}
+
+        function EntityComponent:onConstruct(name)
+            print("Entity", name)
+        end
+
+        local HorseComponent = {
+            Super = "EntityComponent"
+        }
+
+        function HorseComponent:onSpawn()
+            self.Super.onConstruct(self, name) -- Calls EntityComponent:onConstruct with custom arguments
+        end
+    ]]
 end
 
 --[[
@@ -333,6 +354,18 @@ function componentClassIs(componentClass, otherComponentClass)
 end
 
 --[[
+    Remove shortcut
+    @param componentInstance Component (self)
+]]
+function componentRemove(componentInstance)
+	local instance = componentInstance.Instance
+	if not instance then
+		return
+	end
+	Components:removeComponent(instance, componentInstance.Name)
+end
+
+--[[
     Resolve component inheritance (super class)
     @param component Component
 ]]
@@ -349,6 +382,9 @@ function resolveComponentsInheritance(components)
 
 		-- Useful for OOP inheritance checking
 		component.isA = componentClassIs
+
+		-- Remove shortcut
+		component.remove = componentRemove
 
 		-- Get super class
 		local super = getSuperComponentClass(component)
@@ -529,9 +565,10 @@ end
     @param instance Instance to add the component
     @param componentName Name of the component
     @param skipTest Skip the test (Ancestry, type, predicate checkings)
+    @param ... Additional arguments which will be passed to the constructor
     @return A component instance that was added otherwise the already existing one
 ]]
-function Components:addComponent(instance: Instance, componentName: string, skipTest: boolean?)
+function Components:addComponent(instance: Instance, componentName: string, skipTest: boolean?, ...: any)
 	assertIfNotExists(componentName)
 	ensureComponentContainerExists(instance)
 
@@ -551,9 +588,9 @@ function Components:addComponent(instance: Instance, componentName: string, skip
 	local componentInstance = createComponentInstance(component, instance)
 
 	-- Call onSpawn
-	Utils.try(function()
-		invokeComponentMethod(componentInstance, "onSpawn")
-	end, `Failed to spawn component: {component.Tag}, instance: {instance:GetFullName()}`)
+	Utils.try(function(...)
+		invokeComponentMethod(componentInstance, "onSpawn", ...)
+	end, `Failed to spawn component: {component.Tag}, instance: {instance:GetFullName()}`, ...)
 
 	-- Put the component into the instance components container
 	instancesMap[instance][componentName] = componentInstance

@@ -13,4 +13,5 @@ return table.freeze({
 
 	-- Components
 	Cleaner = symbol("Cleaner"),
+	Auto = symbol("Auto"),
 })
