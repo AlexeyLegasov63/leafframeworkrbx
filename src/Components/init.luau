@@ -16,6 +16,7 @@ local BaseComponent = require(script.BaseComponent)
 local Symbols = require(Root.Symbols)
 local DependencyResolver = require(Root.DependencyResolver)
 local LifeCycle = require(Root.LifeCycle)
+local Types = require(Root.Types)
 local Signal = require(Root.Utils.Signal)
 local Utils = require(Root.Utils)
 
@@ -41,13 +42,14 @@ local Components = {
 }
 
 -- Signals for component spawn/despawn events
-Components.onComponentSpawned = Signal.new()
-Components.onComponentDespawned = Signal.new()
+Components.onComponentSpawned = Signal.new() :: Signal.Signal<(string, Types.BaseComponent<Instance>)>
+Components.onComponentDespawned = Signal.new() :: Signal.Signal<(string, Types.BaseComponent<Instance>)>
 
 -- Private:
 
 local watchingTags = {} -- Tag -> ComponentName
 local loadedComponents = {} -- ComponentName -> ComponentClass
+local loadedComponentsSet = {} -- ComponentClass -> true
 
 -- Runtime:
 
@@ -61,7 +63,24 @@ function assertIfNotExists(componentName)
 	if loadedComponents[componentName] then
 		return -- Component exists, all is ok
 	end
-	throw(`Component '{componentName}' does not exist!`, 3)
+	throw(`Component '{componentName}' does not exist!`)
+end
+
+-- Resolves the component
+function resolveComponent(component: string | any)
+	if type(component) == "string" then
+		assertIfNotExists(component)
+		return loadedComponents[component]
+	end
+	if not loadedComponentsSet[component] then
+		throw(`Invalid component`)
+	end
+	return component
+end
+
+-- Resolves the component name
+function resolveComponentName(component: string | any)
+	return resolveComponent(component).Name
 end
 
 -- Ensures that the instance has a tag
@@ -357,12 +376,23 @@ end
     Remove shortcut
     @param componentInstance Component (self)
 ]]
-function componentRemove(componentInstance)
+function componentRemove(componentInstance: Types.BaseComponent<Instance>)
 	local instance = componentInstance.Instance
-	if not instance then
+	if not instance.Parent then
 		return
 	end
 	Components:removeComponent(instance, componentInstance.Name)
+end
+
+--[[
+    Add components bundle to instance (auto remove)
+    @param componentInstance Component (self)
+    @param bundle An array of components
+]]
+function componentAddBundle(componentInstance: Types.BaseComponent<Instance>, bundle: { string | any })
+	local destroy = Components:addComponentsBundle(componentInstance.Instance, bundle)
+
+	componentInstance:onDestroy(destroy)
 end
 
 --[[
@@ -372,19 +402,37 @@ end
 function resolveComponentsInheritance(components)
 	local sorted = topologicalComponentsInheritanceSort(components)
 
+	local defaultMethods = {
+		isA = {
+			Optional = false,
+			Func = componentClassIs,
+		},
+		-- Optional
+		remove = {
+			Optional = true,
+			Func = componentRemove,
+		},
+		componentsBundle = {
+			Optional = true,
+			Func = componentAddBundle,
+		},
+	}
+
 	for _, name in pairs(sorted) do
 		local component = components[name]
 
-		-- Check for reserved symbol
-		if component.isA then
-			throw(`Component {name} has a reserved symbol "isA", use a different name for it.`)
+		-- Load default methods
+		for methodName, method in defaultMethods do
+			local contains = component[methodName]
+
+			if contains and method.Optional then
+				continue
+			elseif contains then
+				throw(`Component {name} has a reserved symbol "{methodName}", use a different name for it.`)
+			end
+
+			component[methodName] = method.Func
 		end
-
-		-- Useful for OOP inheritance checking
-		component.isA = componentClassIs
-
-		-- Remove shortcut
-		component.remove = componentRemove
 
 		-- Get super class
 		local super = getSuperComponentClass(component)
@@ -420,6 +468,7 @@ function initializeComponents()
 	resolveComponentsInheritance(components)
 
 	for _, component in pairs(components) do
+		loadedComponentsSet[component] = true
 		loadedComponents[component.Name] = component
 		componentToInstancesMap[component.Name] = Utils.newWeakMap() -- ComponentName -> Set<Instance>
 	end
@@ -464,8 +513,8 @@ end
     @param excludeDescendants Exclude descendants of the component
     @return An array of component instances
 ]]
-function Components:getComponents(componentName: string, excludeDescendants: boolean?)
-	assertIfNotExists(componentName)
+function Components:getComponents(componentName: string | any, excludeDescendants: boolean?)
+	componentName = resolveComponentName(componentName)
 
 	local instances = {}
 	local alreadyAdded = {}
@@ -497,8 +546,8 @@ end
     @param excludeDescendants Exclude descendants of the component
     @return An array of instances
 ]]
-function Components:getInstancesWithComponent(componentName: string, excludeDescendants: boolean?)
-	assertIfNotExists(componentName)
+function Components:getInstancesWithComponent(componentName: string | any, excludeDescendants: boolean?)
+	componentName = resolveComponentName(componentName)
 
 	local withComponent = {}
 	local alreadyAdded = {}
@@ -526,38 +575,109 @@ end
 --[[
     Get component from instance
     @param instance Instance to get the component
-    @param componentName Name of the component
+    @param component Name of the component or the component
     @return A component instance or nil
 ]]
-function Components:getComponent(instance: Instance, componentName: string)
-	assertIfNotExists(componentName)
+function Components:getComponent(instance: Instance, component: string | any)
+	local componentName = resolveComponentName(component)
 	return instancesMap[instance] and instancesMap[instance][componentName]
 end
 
 --[[
     Check if instance has component
     @param instance Instance to check
-    @param componentName Name of the component
+    @param component Name of the component or the component
     @return True if the instance has the component otherwise false
 ]]
-function Components:hasComponent(instance: Instance, componentName: string)
-	return Components:getComponent(instance, componentName) ~= nil
+function Components:hasComponent(instance: Instance, component: string | any)
+	return Components:getComponent(instance, component) ~= nil
 end
 
 --[[
     Check if component is a descendant of otherComponent (InstanceOf)
-    @param componentName Name of the component
-    @param otherComponentName Name of the other component
+    @param component Name of the component or the component
+    @param otherComponent Name of the other component or the other component
     @return True if the component is a descendant otherwise false
 ]]
-function Components:componentIsA(componentName, otherComponentName)
-	assertIfNotExists(componentName) -- Component
-	assertIfNotExists(otherComponentName) -- Other component
+function Components:componentIsA(component: string | any, otherComponent: string | any)
+	local componentName = resolveComponentName(component)
+	local otherComponentName = resolveComponentName(otherComponent)
 
-	local component = loadedComponents[componentName]
-	local otherComponent = loadedComponents[otherComponentName]
+	component = loadedComponents[componentName]
+	otherComponent = loadedComponents[otherComponentName]
 
 	return componentClassIs(component, otherComponent)
+end
+
+--[[
+    Add components bundle to instance
+    @param instance Instance to add the components
+    @param bundle An array of components
+    @return A function that will remove all the components
+]]
+function Components:addComponentsBundle(instance: Instance, bundle: { string | any })
+	for _, component in pairs(bundle) do
+		self:addComponent(instance, component)
+	end
+	return function()
+		for _, component in pairs(bundle) do
+			self:removeComponent(instance, component)
+		end
+	end
+end
+
+----------------------------------------------------------
+
+--[[
+    Resolve virtuals for the instance
+    @param instance Instance to resolve
+    @param componentInstance Component instance
+    @return void
+]]
+function Components:_resolveVirtuals(instance: Instance, componentInstance: Types.BaseComponent<Instance, nil>)
+	local super = componentInstance.Super :: Types.BaseComponent<Instance, nil>
+
+	while super ~= nil do
+		if super == BaseComponent then
+			break
+		end
+		instancesMap[instance][super.Name] = componentInstance
+		super = super.Super
+	end
+end
+
+--[[
+    Remove virtuals for the instance
+    @param instance Instance to remove
+    @param componentInstance Component instance
+    @return void
+]]
+function Components:_removeVirtuals(instance: Instance, componentInstance: Types.BaseComponent<Instance, nil>)
+	local super = componentInstance.Super :: Types.BaseComponent<Instance, nil>
+
+	while super ~= nil do
+		local superName = super.Name
+		if super == BaseComponent then
+			break
+		end
+		if instancesMap[instance][superName] == componentInstance then
+			instancesMap[instance][superName] = nil
+		end
+		super = super.Super
+	end
+end
+
+--[[
+    Get debug info
+    @return A table with the debug info
+]]
+function Components:_debugInfo()
+	return {
+		watchingTags = watchingTags,
+		loadedComponents = loadedComponents,
+		instancesMap = instancesMap,
+		componentToInstancesMap = componentToInstancesMap,
+	}
 end
 
 --[[
@@ -568,11 +688,10 @@ end
     @param ... Additional arguments which will be passed to the constructor
     @return A component instance that was added otherwise the already existing one
 ]]
-function Components:addComponent(instance: Instance, componentName: string, skipTest: boolean?, ...: any)
-	assertIfNotExists(componentName)
+function Components:addComponent(instance: Instance, componentName: string | any, skipTest: boolean?, ...: any)
+	local component = resolveComponent(componentName)
+	componentName = component.Name -- Resolve the name
 	ensureComponentContainerExists(instance)
-
-	local component = loadedComponents[componentName]
 
 	if not skipTest and not testInstance(component, instance) then
 		throw(`Instance '{instance:GetFullName()}' does not pass test for component '{componentName}'!`, 3)
@@ -591,6 +710,9 @@ function Components:addComponent(instance: Instance, componentName: string, skip
 	Utils.try(function(...)
 		invokeComponentMethod(componentInstance, "onSpawn", ...)
 	end, `Failed to spawn component: {component.Tag}, instance: {instance:GetFullName()}`, ...)
+
+	-- Add super classes (override)
+	self:_resolveVirtuals(instance, componentInstance)
 
 	-- Put the component into the instance components container
 	instancesMap[instance][componentName] = componentInstance
@@ -620,7 +742,7 @@ end
     @return True if the component was removed otherwise false
 ]]
 function Components:removeComponent(instance, componentName)
-	assertIfNotExists(componentName)
+	componentName = resolveComponentName(componentName)
 
 	local component = loadedComponents[componentName]
 
@@ -638,6 +760,9 @@ function Components:removeComponent(instance, componentName)
 	-- Unregister the component
 	LifeCycle.unregister(componentInstance)
 
+	-- Remove super classes
+	self:_removeVirtuals(instance, componentInstance)
+
 	-- Update the instance's components container
 	instancesMap[instance][componentName] = nil
 
@@ -650,7 +775,7 @@ function Components:removeComponent(instance, componentName)
 	end, `Failed to despawn component: {component.Tag}, instance: {instance:GetFullName()}`)
 
 	-- Check if the instance has no more components
-	if next(instancesMap[instance]) == nil then
+	if instancesMap[instance] and next(instancesMap[instance]) == nil then
 		-- No more components
 		instancesMap[instance] = nil
 	end
@@ -667,34 +792,70 @@ end
     @param callback Callback function
     @return Connection
 ]]
-function Components:watchComponent(component, callback)
-	assertIfNotExists(component)
+function Components:watchComponent(
+	component: string | any,
+	callback: (instance: Types.BaseComponent<Instance>) -> () -> ()
+)
+	component = resolveComponentName(component)
+
+	-- Store the destructors
+	local destructors = Utils.newWeakMap()
+
+	-- Watch for new instances
+	local function watch(instance)
+		local destructor = callback(instance)
+		if not destructor then
+			return -- No destructor
+		end
+		destructors[instance] = destructor
+	end
+
+	-- Watch for the already existing instances
 	do
 		-- Do it in a new block to not keep the references
 		local alreadyExisting = Components:getComponents(component)
 
 		-- Invoke the callback for the already existing instances
 		for _, instance in pairs(alreadyExisting) do
-			task.spawn(callback, instance)
+			task.spawn(watch, instance)
 		end
 	end
 
 	-- Watch for new instances
-	return Components.onComponentSpawned:Connect(function(otherComponent, instance)
+	local connection1 = Components.onComponentSpawned:Connect(function(otherComponent, instance)
 		if otherComponent ~= component then
 			return
 		end
-		callback(instance)
+		watch(instance)
 	end)
+	-- Watch for removed instances
+	local connection2 = Components.onComponentDespawned:Connect(function(otherComponent, instance)
+		if otherComponent ~= component or not destructors[instance] then
+			return
+		end
+		destructors[instance]()
+	end)
+
+	-- Watch for new instances
+	return function()
+		-- Get rid of the connections
+		connection1:Disconnect()
+		connection2:Disconnect()
+
+		-- Destroy the destructors
+		for _, destructor in pairs(destructors) do
+			destructor()
+		end
+	end
 end
 
 --[[
     Watch for component instance
     @param component Name of the component
-    @return Promise<string, Instance>
+    @return Promise<string, ComponentInstance>
 ]]
-function Components:waitForFirstComponent(component)
-	assertIfNotExists(component)
+function Components:waitForFirstComponent(component: string | any)
+	component = resolveComponentName(component)
 
 	-- Check if the component already exists
 	local alreadyExisting = Components:getComponents(component)[1]

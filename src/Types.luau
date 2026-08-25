@@ -7,15 +7,15 @@ export type Node = {
 }
 
 export type LifeCycleHooks = {
-    onTick: (self: LifeCycleHooks, delta: number) -> ()?,
-    onRender: (self: LifeCycleHooks, delta: number) -> ()?,
-    onPhysics: (self: LifeCycleHooks, delta: number) -> ()?,
+	onTick: (self: LifeCycleHooks, delta: number) -> ()?,
+	onRender: (self: LifeCycleHooks, delta: number) -> ()?,
+	onPhysics: (self: LifeCycleHooks, delta: number) -> ()?,
 }
 
 export type Cleaner = {
-    add: <T> (self: Cleaner, task: T) -> T,
-    extend: (self: Cleaner) -> Cleaner,
-    cleanup: (self: Cleaner) -> (),
+	add: <T>(self: Cleaner, task: T) -> T,
+	extend: (self: Cleaner) -> Cleaner,
+	cleanup: (self: Cleaner) -> (),
 }
 
 export type Connection<U...> = Signal.Connection<U...>
@@ -27,12 +27,12 @@ export type Component<IT, ST = nil, Args... = ()> = LifeCycleHooks & Node & {
 	Tag: string?, -- Tag
 	Super: ST?, -- Superclass
 
-    -- InstanceOf check
-    isA: (self: Component<IT, ST>, component: string) -> boolean,
+	-- InstanceOf check
+	isA: (self: Component<IT, ST>, component: string) -> boolean,
 
-    -- Lifecycle
-    onSpawn: (self: Component<IT, ST>, Args...) -> (),
-    onDespawn: (self: Component<IT, ST>) -> (),
+	-- Lifecycle
+	onSpawn: (self: Component<IT, ST>, Args...) -> (),
+	onDespawn: (self: Component<IT, ST>) -> (),
 }
 
 --[[
@@ -44,44 +44,31 @@ export type Component<IT, ST = nil, Args... = ()> = LifeCycleHooks & Node & {
 export type BaseComponent<IT, ST = nil, Args... = ()> = Component<IT, ST, Args...> & {
 	Attributes: { [string]: any }?,
 
-    Cleaner: Cleaner,
+	Cleaner: Cleaner,
 
-    WhitelistedAncestors: { Instance }?,
-    BlacklistedAncestors: { Instance }?,
+	WhitelistedAncestors: { Instance }?,
+	BlacklistedAncestors: { Instance }?,
 
-    Predicate: (instance: Instance) -> boolean?,
+	Predicate: (instance: Instance) -> boolean?,
 
-    -- Cleaner:add shortcut
-    onDestroy: <T> (self: BaseComponent<IT, ST>, task: T) -> T,
+	-- Cleaner:add shortcut
+	onDestroy: <T>(self: BaseComponent<IT, ST>, task: T) -> T,
 
-    -- Attribute access
-    onAttributeChanged: (self: BaseComponent<IT, ST>, attribute: string, callback: (newValue: any, oldValue: any) -> ()) -> RBXScriptConnection,
+	-- Add components to the instance which will be destroyed when the component is destroyed
+	componentsBundle: (self: BaseComponent<IT, ST>, bundle: { string | any }) -> (),
 
-    -- Utility (Destroys the instance)
-    destroy: (self: BaseComponent<IT, ST>) -> (),
+	-- Attribute access
+	onAttributeChanged: (
+		self: BaseComponent<IT, ST>,
+		attribute: string,
+		callback: (newValue: any, oldValue: any) -> ()
+	) -> RBXScriptConnection,
 
-    -- Utility (Removes the component from the instance)
-    remove: (self: BaseComponent<IT, ST>) -> (),
-}
+	-- Utility (Destroys the instance)
+	destroy: (self: BaseComponent<IT, ST>) -> (),
 
-export type Components = {
-    waitForFirstComponent: <T> (self: Components, component: string) -> (self: Components, component: string) -> T,
-    watchComponent: (self: Components, component: string, callback: (instance: Instance) -> ()) -> RBXScriptConnection,
-    
-    getComponents: (self: Components, component: string) -> { Instance },
-    getDescendantsOf: (self: Components, component: string) -> { string },
-    getInstancesWithComponent: (self: Components, component: string, excludeDescendants: boolean?) -> { Instance },
-
-    addComponent: (self: Components, instance: Instance, componentName: string, skipTest: boolean?, ...any) -> (),
-    removeComponent: (self: Components, instance: Instance, componentName: string) -> boolean,
-
-    getComponent: <T> (self: Components, instance: Instance, componentName: string) -> T?,
-    hasComponent: (self: Components, instance: Instance, componentName: string) -> boolean,
-
-    componentIsA: (self: Components, instance: Instance, componentName: string, component: string) -> boolean,
-
-    onComponentSpawned: Signal<string, BaseComponent<Instance>>,
-    onComponentDespawned: Signal<string, BaseComponent<Instance>>,
+	-- Utility (Removes the component from the instance)
+	remove: (self: BaseComponent<IT, ST>) -> (),
 }
 
 --------------------------------------------------------------------------

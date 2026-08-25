@@ -21,7 +21,6 @@ local printStackTrace = Utils.printStackTrace
 
 export type FrameworkConfig = Types.FrameworkConfig
 export type BaseComponent<IT, ST = nil> = Types.BaseComponent<IT, ST>
-export type Components = Types.Components
 export type Cleaner = Types.Cleaner
 export type Signal<T...> = Types.Signal<T...>
 export type LifeCycleHooks = Types.LifeCycleHooks
@@ -29,7 +28,7 @@ export type LifeCycleHooks = Types.LifeCycleHooks
 --------------------------------------------------------------------------
 
 local LeafFramework = {
-	Components = Components.dependency :: Types.Components,
+	Components = Components.dependency,
 	Flags = {
 		Auto = Symbols.Auto,
 	},
