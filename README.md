@@ -111,7 +111,7 @@ A framework should **fail loudly during startup rather than leave a server runni
 ### Wally
 
 ```toml
-Leaf = "alexeylegasov63/leafframeworkrbx@0.4.3"
+Leaf = "alexeylegasov63/leafframeworkrbx@0.4.4"
 ```
 
 Then:

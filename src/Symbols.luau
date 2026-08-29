@@ -13,5 +13,6 @@ return table.freeze({
 
 	-- Components
 	Cleaner = symbol("Cleaner"),
+	Removed = symbol("Removed"),
 	Auto = symbol("Auto"),
 })
