@@ -101,6 +101,17 @@ export type Cleaner = {
         @return void
     ]]
 	cleanup: (self: Cleaner) -> (),
+	--[[
+        Checks if the item is cleanable
+        @param item The item to check
+        @return boolean True if the item is cleanable
+    ]]
+	isCleanable: (item: any) -> boolean,
+	--[[
+        Clears a cleanable item (RBXScriptConnection, Instance, Thread, etc.)
+        @param item The item to be cleaned up
+    ]]
+	clear: (self: Cleaner, item: CleanerTask) -> (),
 }
 
 export type Connection<U...> = Signal.Connection<U...>
@@ -181,6 +192,14 @@ export type BaseComponent<IT, ST = nil, Args... = ()> = Component<IT, ST, Args..
         @return void
 	]]
 	componentsBundle: (self: BaseComponent<IT, ST>, bundle: { string | any }) -> (),
+
+	--[[
+        Adds a component to the instance which will be destroyed with it
+        @param self BaseComponent
+        @param component Name of the component or the component
+        @return Component
+    ]]
+	subComponent: <C>(self: BaseComponent<IT, ST>, component: string | C) -> C,
 
 	--[[
         Connects a callback to a specific attribute change

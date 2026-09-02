@@ -17,6 +17,7 @@ local Symbols = require(Root.Symbols)
 local DependencyResolver = require(Root.DependencyResolver)
 local LifeCycle = require(Root.LifeCycle)
 local Types = require(Root.Types)
+local Cleaner = require(Root.Utils.Cleaner)
 local Signal = require(Root.Utils.Signal)
 local Utils = require(Root.Utils)
 
@@ -413,6 +414,24 @@ function componentAddBundle(componentInstance: BaseComponent, bundle: { string |
 end
 
 --[[
+    Adds a component to the instance which will be destroyed with it
+    @param self BaseComponent
+    @param component Name of the component or the component
+    @return Component
+]]
+function componentAddSub(componentInstance: BaseComponent, subComponent: string | BaseComponent)
+	local instance = componentInstance.Instance
+
+	local subComponentInstance = Components:addComponent(instance, subComponent)
+
+	componentInstance:onDestroy(function()
+		Components:removeComponent(instance, subComponentInstance.Name)
+	end)
+
+	return subComponentInstance
+end
+
+--[[
     Resolve component inheritance (super class)
     @param component Component
 ]]
@@ -433,6 +452,10 @@ function resolveComponentsInheritance(components: { [string]: BaseComponent })
 			Optional = true,
 			Func = componentAddBundle,
 		},
+		subComponent = {
+			Optional = true,
+			Func = componentAddSub,
+		},
 	}
 
 	for _, name in sorted do
@@ -443,11 +466,13 @@ function resolveComponentsInheritance(components: { [string]: BaseComponent })
 			local contains = component[methodName]
 
 			if contains and method.Optional then
-				continue
+				continue -- Ignore cause it's optional
 			elseif contains then
+				-- Otherwise throw an error
 				throw(`Component {name} has a reserved symbol "{methodName}", use a different name for it.`)
 			end
 
+			-- Add method
 			component[methodName] = method.Func
 		end
 
@@ -860,26 +885,28 @@ function Components:watchComponent(component: string | any, callback: (instance:
 		end
 	end
 
+	local cleaner = Cleaner.new()
+
 	-- Watch for new instances
-	local connection1 = Components.onComponentSpawned:Connect(function(otherComponent, instance)
+	cleaner:add(Components.onComponentSpawned:Connect(function(otherComponent, instance)
 		if otherComponent ~= component then
 			return
 		end
 		watch(instance)
-	end)
+	end))
+
 	-- Watch for removed instances
-	local connection2 = Components.onComponentDespawned:Connect(function(otherComponent, instance)
+	cleaner:add(Components.onComponentDespawned:Connect(function(otherComponent, instance)
 		if otherComponent ~= component or not destructors[instance] then
 			return
 		end
 		destructors[instance]()
-	end)
+	end))
 
 	-- Watch for new instances
 	return function()
 		-- Get rid of the connections
-		connection1:Disconnect()
-		connection2:Disconnect()
+		cleaner:cleanup()
 
 		-- Destroy the destructors
 		for _, destructor in pairs(destructors) do

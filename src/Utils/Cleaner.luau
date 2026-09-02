@@ -5,10 +5,14 @@
     Helps to prevent memory leaks and ensures proper resource disposal upon component despawn.
 ]]
 
+local Types = require(script.Parent.Parent.Types)
 local Utils = require(script.Parent)
 
 local throw = Utils.throw
 local try = Utils.try
+
+type Cleaner = Types.Cleaner
+type CleanerTask = Types.CleanerTask
 
 local CLEANER_SYMBOL = newproxy()
 
@@ -119,7 +123,7 @@ end
     Creates a new Cleaner instance
     @return A new Cleaner (Maid) object
 ]]
-function Cleaner.new()
+function Cleaner.new(): Cleaner
 	return setmetatable({
 		_garbage = {}, -- Array of cleanable resources
 	}, Cleaner)
@@ -130,8 +134,10 @@ end
     @param item The item to be cleaned up later (Connection, Instance, Thread, etc.)
     @return The given item
 ]]
-function Cleaner:add(item: any)
-	if not assureIsCleanable(item) then
+function Cleaner:add(item: CleanerTask)
+	if not item then
+		return -- Nil
+	elseif not assureIsCleanable(item) then
 		throw(`Cleaner: Item '{typeof(item)}' is not cleanable!`)
 	end
 
@@ -170,4 +176,15 @@ end
 -- Alias
 Cleaner.destroy = Cleaner.cleanup
 
-return Cleaner
+-- Check if a value is cleanable
+Cleaner.isCleanable = assureIsCleanable
+
+-- Clear a value
+Cleaner.clear = clearItem
+
+return Cleaner :: {
+	new: () -> Cleaner,
+
+	isCleanable: (value: any) -> boolean,
+	clear: (value: any) -> (),
+}

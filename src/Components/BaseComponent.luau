@@ -121,13 +121,15 @@ end
       • self.Super: Super component class (Use for calling super methods and access fields)
 --]]
 function BaseComponent:onSpawn()
-	self[Symbols.Cleaner] = Cleaner.new()
+	local cleaner = Cleaner.new()
+
+	self[Symbols.Cleaner] = cleaner
 
 	-- Initialize attributes
 	storeInstanceAttributes(self)
 
 	-- Create another cleaner instance for custom tasks
-	self.Cleaner = self[Symbols.Cleaner]:extend()
+	self.Cleaner = cleaner:extend()
 end
 
 --[[
