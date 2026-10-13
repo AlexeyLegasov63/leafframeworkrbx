@@ -149,6 +149,10 @@ end
 
 -- Ensures that the instance passes all the predicates
 function testInstance(component: BaseComponent, instance: Instance): (boolean, string)
+	if not instance.Parent then
+		return false, "Parent" -- Doesn't have a parent
+	end
+
 	if not testForAncestry(component, instance) then
 		return false, "Ancestry" -- Doesn't pass the ancestry
 	end
@@ -316,7 +320,8 @@ function getSuperComponentClass(module: any)
 		return BaseComponent -- Default
 	end
 
-	local superClassName = resolveComponentName(superClass)
+	-- Resolve the super class name
+	local superClassName = type(superClass) == "string" and superClass or superClass.Name
 
 	-- Fully custom component
 	return DependencyResolver.resolve(superClassName)
@@ -422,11 +427,15 @@ end
 function componentAddSub(componentInstance: BaseComponent, subComponent: string | BaseComponent)
 	local instance = componentInstance.Instance
 
+	local hadComponent = Components:hasComponent(instance, subComponent)
 	local subComponentInstance = Components:addComponent(instance, subComponent)
 
-	componentInstance:onDestroy(function()
-		Components:removeComponent(instance, subComponentInstance.Name)
-	end)
+	-- Don't destroy the sub component if it already exists
+	if not hadComponent then
+		componentInstance:onDestroy(function()
+			Components:removeComponent(instance, subComponentInstance.Name)
+		end)
+	end
 
 	return subComponentInstance
 end
@@ -633,6 +642,23 @@ end
 ]]
 function Components:hasComponent(instance: Instance, component: string | BaseComponent)
 	return Components:getComponent(instance, component) ~= nil
+end
+
+--[[
+    Call a function with a component
+    @param instance Instance to call the function
+    @param component Name of the component or the component
+    @param callback Function to call
+]]
+function Components:manipulateComponent(
+	instance: Instance,
+	component: string | BaseComponent,
+	callback: (component: BaseComponent) -> nil
+)
+	local componentInstance = self:addComponent(instance, component)
+	if componentInstance then
+		callback(componentInstance)
+	end
 end
 
 --[[

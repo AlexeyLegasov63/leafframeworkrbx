@@ -48,7 +48,7 @@ end
     @param directory The directory
     @param type Dependency type
 ]]
-function DepedencyResolver.requireModules(directory, type)
+function DepedencyResolver.requireModules(directory: Instance, type: any)
 	assert(typeof(directory) == "Instance", `Expected directory to be an Instance, got {typeof(directory)}`)
 
 	for _, module in directory:GetChildren() do
@@ -64,10 +64,10 @@ end
     @param directory The directory
     @param type Dependency type
 ]]
-function DepedencyResolver.requireModulesDeep(directory, type)
+function DepedencyResolver.requireModulesDeep(directory: Instance, type: any)
 	assert(typeof(directory) == "Instance", `Expected directory to be an Instance, got {typeof(directory)}`)
 
-	for _, module in ipairs(directory:GetDescendants()) do
+	for _, module in directory:GetDescendants() do
 		if not module:IsA("ModuleScript") then
 			continue
 		end
@@ -80,7 +80,7 @@ end
     @param name The name of the dependency
     @return The module
 ]]
-function DepedencyResolver.resolve(name)
+function DepedencyResolver.resolve(name: string)
 	local module = children[name]
 
 	if module then
@@ -103,9 +103,11 @@ end
     @param name The name of the dependency
     @param module The module
 ]]
-function DepedencyResolver.addCustomDependency(name, module, type)
+function DepedencyResolver.addCustomDependency(name: string, module: any, type: any)
 	if children[name] then
 		throw(`Duplicate module name: {name}`)
+	elseif module[Symbols.Ignore] then
+		return -- Ignore if the flag is set
 	end
 
 	if not module["Name"] then

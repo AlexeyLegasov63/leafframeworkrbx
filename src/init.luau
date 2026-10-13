@@ -31,6 +31,7 @@ local LeafFramework = {
 	Components = Components.dependency,
 	Flags = {
 		Auto = Symbols.Auto,
+		Ignore = Symbols.Ignore,
 	},
 }
 
@@ -50,7 +51,7 @@ end
     Adds controllers/services from a directory.
     @param directory - The directory to scan
 ]=]
-function addChildren(directory)
+function addChildren(directory: Instance)
 	assertIfStarted()
 	DependencyResolver.requireModules(directory, Symbols.ServiceOrController)
 end
@@ -59,7 +60,7 @@ end
     Recursively adds controllers/services from a directory and its subdirectories.
     @param directory - The directory to scan
 ]=]
-function addDeep(directory)
+function addDeep(directory: Instance)
 	assertIfStarted()
 	DependencyResolver.requireModulesDeep(directory, Symbols.ServiceOrController)
 end
@@ -85,7 +86,7 @@ end
     @param directory - The Folder or ModuleScript directory containing components.
     Components are treated as dependency-aware, attribute-synced modules.
 ]=]
-LeafFramework.addComponents = function(directory)
+LeafFramework.addComponents = function(directory: Instance)
 	assertIfStarted()
 	DependencyResolver.requireModules(directory, Symbols.Component)
 end
@@ -96,7 +97,7 @@ end
     @param directory - The Folder or ModuleScript directory to traverse.
     Useful when organizing components in nested folders by feature or domain.
 ]=]
-LeafFramework.addComponentsDeep = function(directory)
+LeafFramework.addComponentsDeep = function(directory: Instance)
 	assertIfStarted()
 	DependencyResolver.requireModulesDeep(directory, Symbols.Component)
 end
@@ -108,7 +109,7 @@ end
 ]=]
 function LeafFramework.addExtension(module: ModuleScript)
 	assertIfStarted()
-	return ExtensionHandler:addExtension(module)
+	ExtensionHandler:addExtension(module)
 end
 
 --------------------------------------------------------------------------
@@ -123,7 +124,7 @@ end
     @param config - Optional configuration table (see Core.FrameworkConfig).
     @return Promise<void> - resolves once the framework is fully started.
 ]]
-function LeafFramework.run(config: FrameworkConfig?)
+function LeafFramework.start(config: FrameworkConfig?)
 	assertIfStarted()
 
 	started = true
@@ -132,6 +133,9 @@ function LeafFramework.run(config: FrameworkConfig?)
 		printStackTrace(tostring(msg), "Leaf failed to start")
 	end)
 end
+
+--@deprecated
+LeafFramework.run = LeafFramework.start
 
 --------------------------------------------------------------------------
 

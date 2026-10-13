@@ -11,6 +11,8 @@ return table.freeze({
 	Component = symbol("Component"),
 	ServiceOrController = symbol("ServiceOrController"),
 
+	Ignore = symbol("Ignore"),
+
 	-- Components
 	Cleaner = symbol("Cleaner"),
 	Removed = symbol("Removed"),
